@@ -1,0 +1,98 @@
+﻿# Gemnsâ„¢ IoT Services
+gemns_add_device:
+  name: "Add Gemnsâ„¢ IoT Device"
+  description: "Manually add a new Gemnsâ„¢ IoT device"
+  fields:
+    device_id:
+      name: "Device ID"
+      description: "Unique identifier for the device"
+      required: true
+      example: "ble_leak_sensor_001"
+    device_type:
+      name: "Device Type"
+      description: "Type of device (ble or zigbee)"
+      required: true
+      selector:
+        select:
+          options:
+            - label: "Bluetooth (BLE)"
+              value: "ble"
+            - label: "Zigbee"
+              value: "zigbee"
+    category:
+      name: "Device Category"
+      description: "Category of the device"
+      required: true
+      selector:
+        select:
+          options:
+            - label: "Sensor"
+              value: "sensor"
+            - label: "Switch"
+              value: "switch"
+            - label: "Light"
+              value: "light"
+            - label: "Door"
+              value: "door"
+            - label: "Toggle"
+              value: "toggle"
+    name:
+      name: "Device Name"
+      description: "Friendly name for the device"
+      required: false
+      example: "Kitchen Leak Sensor"
+    ble_discovery_mode:
+      name: "BLE Discovery Mode"
+      description: "BLE discovery mode (only for BLE devices)"
+      required: false
+      selector:
+        select:
+          options:
+            - label: "V0 Manual Entry"
+              value: "v0_manual"
+            - label: "V1 Auto Pairing"
+              value: "v1_auto"
+    network_key:
+      name: "Network Key"
+      description: "Network key for Zigbee devices or BLE V1 mode"
+      required: false
+
+gemns_remove_device:
+  name: "Remove Gemnsâ„¢ IoT Device"
+  description: "Remove a Gemnsâ„¢ IoT device"
+  fields:
+    device_id:
+      name: "Device ID"
+      description: "ID of the device to remove"
+      required: true
+
+gemns_toggle_ble:
+  name: "Toggle BLE"
+  description: "Enable or disable BLE functionality"
+  fields:
+    enabled:
+      name: "Enabled"
+      description: "Whether to enable BLE"
+      required: true
+      selector:
+        boolean:
+
+gemns_toggle_zigbee:
+  name: "Toggle Zigbee"
+  description: "Enable or disable Zigbee functionality"
+  fields:
+    enabled:
+      name: "Enabled"
+      description: "Whether to enable Zigbee"
+      required: true
+      selector:
+        boolean:
+
+gemns_scan_devices:
+  name: "Scan for Devices"
+  description: "Manually trigger a device scan"
+  fields:
+    dongle_id:
+      name: "Dongle ID"
+      description: "Specific dongle to scan (optional)"
+      required: false

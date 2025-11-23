@@ -309,7 +309,7 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
     def _get_device_image(self, device_type: str) -> str:
         """Get device image URL based on device type."""
         # Use Home Assistant brand repository for icons
-        return "https://brands.home-assistant.io/gemns_iot/icon.png"
+        return "https://brands.home-assistant.io/gemns/icon.png"
 
     def _extract_binary_sensor_value(self, data: dict[str, Any]) -> None:
         """Extract binary sensor value from coordinator data."""

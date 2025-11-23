@@ -66,7 +66,7 @@ class GemnsBLESensor(BinarySensorEntity):
             model="BLE Dongle",
             sw_version="1.0.0",
             configuration_url="https://github.com/manaam216/gemns_integration/blob/main/README.md",
-            image="https://brands.home-assistant.io/gemns_iot/icon.png",
+            image="https://brands.home-assistant.io/gemns/icon.png",
         )
 
         # Set custom icon for BLE dongle
@@ -141,7 +141,7 @@ class GemnsZigbeeSensor(BinarySensorEntity):
             model="Zigbee Dongle",
             sw_version="1.0.0",
             configuration_url="https://github.com/manaam216/gemns_integration/blob/main/README.md",
-            image="https://brands.home-assistant.io/gemns_iot/icon.png",
+            image="https://brands.home-assistant.io/gemns/icon.png",
         )
 
         # Set custom icon for Zigbee dongle

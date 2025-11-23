@@ -261,7 +261,7 @@ class GemnsBLESwitch(SwitchEntity):
     def _get_device_image(self, device_type: str) -> str:
         """Get device image URL based on device type."""
         # Use Home Assistant brand repository for icons
-        return "https://brands.home-assistant.io/gemns_iot/icon.png"
+        return "https://brands.home-assistant.io/gemns/icon.png"
 
     def _extract_switch_value(self, data: dict[str, Any]) -> None:
         """Extract switch value from coordinator data."""

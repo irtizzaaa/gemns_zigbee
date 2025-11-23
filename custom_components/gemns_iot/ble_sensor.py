@@ -319,20 +319,8 @@ class GemnsBLESensor(SensorEntity):
 
     def _get_device_image(self, device_type: str) -> str:
         """Get device image URL based on device type."""
-        # Map device types to their corresponding image paths
-        image_map = {
-            "temperature_sensor": "/local/custom_components/gemns_iot/static/icon.png",
-            "humidity_sensor": "/local/custom_components/gemns_iot/static/icon.png",
-            "pressure_sensor": "/local/custom_components/gemns_iot/static/icon.png",
-            "vibration_sensor": "/local/custom_components/gemns_iot/static/icon.png",
-            "leak_sensor": "/local/custom_components/gemns_iot/static/icon.png",
-            "on_off_switch": "/local/custom_components/gemns_iot/static/icon.png",
-            "light_switch": "/local/custom_components/gemns_iot/static/icon.png",
-            "door_switch": "/local/custom_components/gemns_iot/static/icon.png",
-            "toggle_switch": "/local/custom_components/gemns_iot/static/icon.png",
-        }
-
-        return image_map.get(device_type.lower(), "/local/custom_components/gemns_iot/static/icon.png")
+        # Use Home Assistant brand repository for icons
+        return "https://brands.home-assistant.io/gemns_iot/icon.png"
 
     def _extract_sensor_value(self, data: dict[str, Any]) -> None:
         """Extract sensor value from coordinator data."""

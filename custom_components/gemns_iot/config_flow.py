@@ -214,7 +214,7 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
             description_placeholders={
                 "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Two Way Switch\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
-                "integration_icon": "/local/custom_components/gemns_iot/static/icon.png"
+                "integration_icon": "https://brands.home-assistant.io/gemns_iot/icon.png"
             }
         )
 

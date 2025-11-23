@@ -107,7 +107,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_DATA_SCHEMA,
             description_placeholders={
                 "message": "Manually provision a Gemns™ IoT device by entering its MAC address and decryption key.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Two Way Switch\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
-                "integration_icon": "/local/custom_components/gemns_iot/static/icon.png"
+                "integration_icon": "https://brands.home-assistant.io/gemns_iot/icon.png"
             }
         )
 
@@ -215,7 +215,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     "message": descriptions.get(device_type, descriptions["unknown"]),
                     "device_name": device_name,
                     "device_type": device_type.replace("_", " ").title(),
-                    "integration_icon": "/local/custom_components/gemns_iot/static/icon.png"
+                    "integration_icon": "https://brands.home-assistant.io/gemns_iot/icon.png"
                 }
             )
 

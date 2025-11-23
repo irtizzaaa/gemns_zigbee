@@ -1,5 +1,5 @@
 {
-  "domain": "gemns_iot",
+  "domain": "gemns",
   "name": "Gemns™ IoT",
   "integration_type": "device",
   "bluetooth": [
@@ -28,7 +28,7 @@
   "codeowners": ["@gems"],
   "config_flow": true,
   "dependencies": ["bluetooth"],
-  "documentation": "https://github.com/irtizzaaa/gemns_zigbee_integration/blob/main/README.md",
+  "documentation": "https://github.com/manaam216/gemns_integration/blob/main/README.md",
   "iot_class": "local_push",
   "loggers": ["gems_ble"],
   "requirements": ["cryptography>=3.0.0"],

@@ -1,7 +1,7 @@
-﻿# Gemnsâ„¢ IoT Device Management Dashboard
+# Gemns™ IoT Device Management Dashboard
 # Add this to your Lovelace dashboard
 
-title: Gemnsâ„¢ IoT Device Management
+title: Gemns™ IoT Device Management
 views:
   - title: Devices
     path: devices
@@ -10,7 +10,7 @@ views:
     cards:
       # Header Card
       - type: custom:button-card
-        name: Gemnsâ„¢ IoT Status
+        name: Gemns™ IoT Status
         entity: binary_sensor.gemns_ble_connected
         layout: vertical
         size: 25%
@@ -79,7 +79,7 @@ views:
             - margin: 5px
             - color: white
         custom_fields:
-          add_text: "âž• Add Device"
+          add_text: "➕ Add Device"
 
       # Scan Devices Button
       - type: custom:button-card

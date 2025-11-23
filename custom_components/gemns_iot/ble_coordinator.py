@@ -177,21 +177,18 @@ class GemnsBluetoothProcessorCoordinator(
         else:
             _LOGGER.warning("NO MANUFACTURER DATA: %s", self.address)
 
+        # Determine device type based on sensor type
         if 'sensor_data' in data and 'device_type' in data['sensor_data']:
             device_type = data['sensor_data']['device_type']
             _LOGGER.info("DEVICE TYPE DETECTION: device_type=%d (0x%04X)", device_type, device_type)
-            if device_type == 0:
-                data["device_type"] = "push_button"
-                data["name"] = f"Gemns™ IoT Push Button {professional_id}"
-                _LOGGER.info("  Identified as: push_button")
-            elif device_type == 1:
-                data["device_type"] = "light_switch"
-                data["name"] = f"Gemns™ IoT Light Switch {professional_id}"
-                _LOGGER.info("  Identified as: light_switch")
+            if device_type == 1:
+                data["device_type"] = "button"
+                data["name"] = f"Gemns™ IoT Button {professional_id}"
+                _LOGGER.info("  Identified as: button")
             elif device_type == 2:
-                data["device_type"] = "door_sensor"
-                data["name"] = f"Gemns™ IoT Door Sensor {professional_id}"
-                _LOGGER.info("  Identified as: door_sensor")
+                data["device_type"] = "vibration_sensor"
+                data["name"] = f"Gemns™ IoT Vibration Monitor {professional_id}"
+                _LOGGER.info("  Identified as: vibration_sensor")
             elif device_type == 3:
                 data["device_type"] = "two_way_switch"
                 data["name"] = f"Gemns™ IoT Two Way Switch {professional_id}"

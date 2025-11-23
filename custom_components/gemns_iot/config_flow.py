@@ -6,24 +6,24 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.const import CONF_ADDRESS, CONF_NAME
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME, CONF_NAME, CONF_ADDRESS
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
+    CONF_MQTT_BROKER,
+    CONF_MQTT_USERNAME,
+    CONF_MQTT_PASSWORD,
+    CONF_ENABLE_ZIGBEE,
+    CONF_SCAN_INTERVAL,
+    CONF_HEARTBEAT_INTERVAL,
+    DEFAULT_MQTT_BROKER,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_HEARTBEAT_INTERVAL,
+    DEFAULT_ENABLE_ZIGBEE,
+    DOMAIN,
     CONF_DECRYPTION_KEY,
     CONF_DEVICE_NAME,
     CONF_DEVICE_TYPE,
-    CONF_ENABLE_ZIGBEE,
-    CONF_HEARTBEAT_INTERVAL,
-    CONF_MQTT_BROKER,
-    CONF_MQTT_PASSWORD,
-    CONF_MQTT_USERNAME,
-    CONF_SCAN_INTERVAL,
-    DEFAULT_ENABLE_ZIGBEE,
-    DEFAULT_HEARTBEAT_INTERVAL,
-    DEFAULT_MQTT_BROKER,
-    DEFAULT_SCAN_INTERVAL,
-    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,9 +33,10 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Gemns™ IoT."""
 
     VERSION = 1
-
+    
     def __init__(self) -> None:
         """Initialize the config flow."""
+        pass
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -44,10 +45,10 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # MQTT option temporarily disabled - firmware not developed yet
         # To re-enable MQTT: uncomment the integration_type selection below
         # and restore the conditional logic in the rest of this method
-
+        
         # Force BLE manual provisioning for now
         return await self.async_step_ble()
-
+        
         # MQTT OPTION (COMMENTED OUT - TO RE-ENABLE WHEN FIRMWARE IS READY):
         # if user_input is None:
         #     return self.async_show_form(
@@ -63,7 +64,7 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         #     )
         #
         # integration_type = user_input["integration_type"]
-        #
+        # 
         # if integration_type == "ble":
         #     # Redirect to BLE config flow for automatic provisioning
         #     return await self.async_step_ble()
@@ -143,7 +144,7 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             decryption_key = user_input[CONF_DECRYPTION_KEY]
             device_name = user_input.get(CONF_DEVICE_NAME, "Gemns™ IoT Device")
             device_type = int(user_input.get(CONF_DEVICE_TYPE, "4"))
-
+            
             # Validate decryption key format
             try:
                 bytes.fromhex(decryption_key)
@@ -155,7 +156,7 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             vol.Optional(CONF_DEVICE_NAME, default=device_name): str,
                             vol.Optional(CONF_DEVICE_TYPE, default="4"): vol.In({
                                 "1": "Button",
-                                "2": "Vibration Monitor",
+                                "2": "Vibration Monitor", 
                                 "3": "Two Way Switch",
                                 "4": "Leak Sensor"
                             }),
@@ -170,24 +171,24 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         vol.Optional(CONF_DEVICE_NAME, default=device_name): str,
                         vol.Optional(CONF_DEVICE_TYPE, default="4"): vol.In({
                             "1": "Button",
-                            "2": "Vibration Monitor",
+                            "2": "Vibration Monitor", 
                             "3": "Two Way Switch",
                             "4": "Leak Sensor"
                         }),
                     }),
                     errors={"base": "invalid_decryption_key_format"},
                 )
-
+            
             # Generate a unique ID for this config entry
             # This will be used by the coordinator to identify the device
             unique_id = f"gemns_ble_{device_name.lower().replace(' ', '_')}"
             address = "00:00:00:00:00:00"  # Placeholder - will be updated by Bluetooth integration
             name = "Gemns™ IoT Device"
-
+            
             # Set the unique ID for this entry
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
-
+            
             # Create the config entry
             return self.async_create_entry(
                 title=device_name,
@@ -207,14 +208,14 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_DEVICE_NAME): str,
                 vol.Optional(CONF_DEVICE_TYPE, default="4"): vol.In({
                     "1": "Button",
-                    "2": "Vibration Monitor",
+                    "2": "Vibration Monitor", 
                     "3": "Two Way Switch",
                     "4": "Leak Sensor"
                 }),
             }),
             description_placeholders={
                 "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Two Way Switch\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
-                "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
+                "integration_icon": "/local/custom_components/gemns/static/icon.png"
             }
         )
 

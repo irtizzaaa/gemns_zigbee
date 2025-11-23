@@ -1,7 +1,7 @@
-﻿# Gemnsâ„¢ IoT Services
+# Gemns™ IoT Services
 gemns_add_device:
-  name: "Add Gemnsâ„¢ IoT Device"
-  description: "Manually add a new Gemnsâ„¢ IoT device"
+  name: "Add Gemns™ IoT Device"
+  description: "Manually add a new Gemns™ IoT device"
   fields:
     device_id:
       name: "Device ID"
@@ -58,8 +58,8 @@ gemns_add_device:
       required: false
 
 gemns_remove_device:
-  name: "Remove Gemnsâ„¢ IoT Device"
-  description: "Remove a Gemnsâ„¢ IoT device"
+  name: "Remove Gemns™ IoT Device"
+  description: "Remove a Gemns™ IoT device"
   fields:
     device_id:
       name: "Device ID"

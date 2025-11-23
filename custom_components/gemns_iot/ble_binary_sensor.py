@@ -202,10 +202,10 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             self._attr_name = f"Gemns™ IoT Push Button {self._get_professional_device_id()}"
             self._attr_icon = "mdi:gesture-tap-button"
 
-        elif device_type == "light_switch":
+        elif device_type == "on_off_switch":
             self._attr_device_class = BinarySensorDeviceClass.OPENING
-            self._attr_name = f"Gemns™ IoT Light Switch {self._get_professional_device_id()}"
-            self._attr_icon = "mdi:light-switch"
+            self._attr_name = f"Gemns™ IoT On/Off Switch {self._get_professional_device_id()}"
+            self._attr_icon = "mdi:toggle-switch"
 
         elif device_type == "door_sensor":
             self._attr_device_class = BinarySensorDeviceClass.DOOR
@@ -247,7 +247,7 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
 
         model_map = {
             "push_button": "Batteryless Push Button",
-            "light_switch": "Batteryless Light Switch",
+            "on_off_switch": "Batteryless On/Off Switch",
             "door_sensor": "Batteryless Door Sensor",
             "two_way_switch": "Batteryless Two-Way Switch",
             "leak_sensor": "Batteryless Leak Sensor",

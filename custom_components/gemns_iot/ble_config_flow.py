@@ -5,17 +5,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.bluetooth import (
-    BluetoothServiceInfo,
-    async_discovered_service_info,
-    async_process_advertisements,
-)
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, FlowResult
-from homeassistant.const import CONF_ADDRESS, CONF_NAME
-from homeassistant.core import HomeAssistant
 import voluptuous as vol
 
-from .const import DOMAIN, BLE_COMPANY_ID, CONF_DECRYPTION_KEY, CONF_DEVICE_NAME, CONF_DEVICE_TYPE
+from homeassistant.components.bluetooth import BluetoothServiceInfo
+from homeassistant.config_entries import ConfigFlow, FlowResult
+from homeassistant.const import CONF_ADDRESS, CONF_NAME
+
+from .const import BLE_COMPANY_ID, DOMAIN
+from .packet_parser import (
+    CONF_DECRYPTION_KEY,
+    CONF_DEVICE_NAME,
+    CONF_DEVICE_TYPE,
+    GemnsPacket,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_DEVICE_NAME): str,
         vol.Optional(CONF_DEVICE_TYPE, default=4): vol.In({
             "1": "Button",
-            "2": "Vibration Monitor", 
+            "2": "Vibration Monitor",
             "3": "Two Way Switch",
             "4": "Leak Sensor"
         }),
@@ -40,7 +42,7 @@ STEP_DISCOVERY_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_DEVICE_NAME): str,
         vol.Optional(CONF_DEVICE_TYPE, default=4): vol.In({
             "1": "Button",
-            "2": "Vibration Monitor", 
+            "2": "Vibration Monitor",
             "3": "Two Way Switch",
             "4": "Leak Sensor"
         }),
@@ -67,7 +69,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             decryption_key = user_input[CONF_DECRYPTION_KEY]
             device_name = user_input.get(CONF_DEVICE_NAME, name)
             device_type = int(user_input.get(CONF_DEVICE_TYPE, "4"))  # Convert string to int, default to leak sensor
-            
+
             # Validate decryption key format
             try:
                 bytes.fromhex(decryption_key)
@@ -83,11 +85,11 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     data_schema=STEP_USER_DATA_SCHEMA,
                     errors={"base": "invalid_decryption_key_format"},
                 )
-            
+
             # Check if already configured
             await self.async_set_unique_id(address)
             self._abort_if_unique_id_configured()
-            
+
             # Create the config entry
             return self.async_create_entry(
                 title=device_name,
@@ -105,7 +107,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=STEP_USER_DATA_SCHEMA,
             description_placeholders={
                 "message": "Manually provision a Gemns™ IoT device by entering its MAC address and decryption key.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Two Way Switch\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
-                "integration_icon": "/local/custom_components/gemns/static/icon.png"
+                "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
             }
         )
 
@@ -116,21 +118,21 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
         # We don't auto-configure devices anymore, just show them as available
         await self.async_set_unique_id(discovery_info.address)
         self._abort_if_unique_id_configured()
-        
+
         # Check if this looks like a Gemns™ IoT device
         if not self._is_gems_device(discovery_info):
             return self.async_abort(reason="not_supported")
-        
+
         # Extract device type from beacon data for better discovery display
         device_type, device_name = self._extract_device_info_from_beacon(discovery_info)
-        
+
         # Store the device info with extracted type
         self._discovered_devices[discovery_info.address] = {
             "discovery_info": discovery_info,
             "device_type": device_type,
             "device_name": device_name
         }
-        
+
         return self.async_abort(reason="device_selection_required")
 
     async def async_step_device_selection(
@@ -143,28 +145,28 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             for address, device_info in self._discovered_devices.items():
                 device_type = device_info.get("device_type", "unknown")
                 device_name = device_info.get("device_name", "Gemns™ IoT Device")
-                
+
                 # Add device type icon
                 icon_map = {
                     "leak_sensor": "mdi:water",
-                    "vibration_sensor": "mdi:vibrate", 
+                    "vibration_sensor": "mdi:vibrate",
                     "two_way_switch": "mdi:toggle-switch",
                     "button": "mdi:gesture-tap-button",
                     "legacy": "mdi:chip",
                     "unknown": "mdi:chip"
                 }
-                
+
                 devices.append({
                     "value": address,
                     "label": f"{device_name} ({address})",
                     "icon": icon_map.get(device_type, "mdi:chip")
                 })
-            
+
             return self.async_show_form(
                 step_id="device_selection",
                 data_schema=vol.Schema({
                     vol.Required("device"): vol.In({
-                        device["value"]: device["label"] 
+                        device["value"]: device["label"]
                         for device in devices
                     })
                 }),
@@ -172,14 +174,14 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     "message": "Select the Gemns™ IoT device you want to configure:"
                 }
             )
-        
+
         # Device selected, proceed to configuration
         selected_address = user_input["device"]
         device_info = self._discovered_devices[selected_address]
-        
+
         # Store selected device info for next step
         self._selected_device = device_info
-        
+
         return await self.async_step_user_config()
 
     async def async_step_user_config(
@@ -190,12 +192,12 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             device_info = self._selected_device
             device_type = device_info.get("device_type", "unknown")
             device_name = device_info.get("device_name", "Gemns™ IoT Device")
-            
+
             # Create device-specific schema
             schema = {
                 vol.Required(CONF_DECRYPTION_KEY): str,
             }
-            
+
             # Add device-specific description
             descriptions = {
                 "leak_sensor": "Configure your Gemns™ IoT Leak Sensor. This device detects water leaks and moisture.",
@@ -205,7 +207,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                 "legacy": "Configure your Gemns™ IoT Legacy Device. This device provides basic IoT functionality.",
                 "unknown": "Configure your Gemns™ IoT Device. This device provides IoT functionality."
             }
-            
+
             return self.async_show_form(
                 step_id="user_config",
                 data_schema=vol.Schema(schema),
@@ -213,16 +215,16 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     "message": descriptions.get(device_type, descriptions["unknown"]),
                     "device_name": device_name,
                     "device_type": device_type.replace("_", " ").title(),
-                    "integration_icon": "/local/custom_components/gemns/static/icon.png"
+                    "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
                 }
             )
-        
+
         # Configuration complete
         device_info = self._selected_device
         discovery_info = device_info["discovery_info"]
         device_type = device_info.get("device_type", "unknown")
         device_name = device_info.get("device_name", "Gemns™ IoT Device")
-        
+
         # Map device type to sensor type
         device_type_map = {
             "legacy": 0,
@@ -232,9 +234,9 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             "leak_sensor": 4,
             "unknown": 4  # Default to leak sensor
         }
-        
+
         device_type = device_type_map.get(device_type, 4)
-        
+
         # Create the config entry
         return self.async_create_entry(
             title=device_name,
@@ -254,14 +256,14 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             for manufacturer_id, data in discovery_info.manufacturer_data.items():
                 if manufacturer_id == BLE_COMPANY_ID and len(data) >= 20:
                     return True
-        
+
         # Check name patterns as fallback
         name = discovery_info.name or ""
         if any(pattern in name.upper() for pattern in ["GEMNS", "GEMS"]):
             return True
-        
+
         return False
-    
+
     def _extract_device_info_from_beacon(self, discovery_info: BluetoothServiceInfo) -> tuple[str, str]:
         """Extract device type and name from beacon data."""
         try:
@@ -271,11 +273,10 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     if manufacturer_id == BLE_COMPANY_ID and len(data) >= 20:
                         # Try to parse the packet to get device type
                         try:
-                            from .packet_parser import GemnsPacket
                             packet = GemnsPacket(data)
                             if packet.is_valid():
                                 device_type = packet.device_type
-                                
+
                                 # Map sensor type to device type and name
                                 device_type_map = {
                                     0: ("legacy", "Legacy Device"),
@@ -284,40 +285,37 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                                     3: ("two_way_switch", "Two-Way Switch"),
                                     4: ("leak_sensor", "Leak Sensor"),
                                 }
-                                
+
                                 device_type, device_name = device_type_map.get(device_type, ("unknown", "IoT Device"))
-                                
+
                                 # Generate professional device name
                                 short_address = discovery_info.address.replace(":", "")[-6:].upper()
                                 device_number = int(short_address, 16) % 1000
                                 professional_name = f"Gemns™ IoT {device_name} Unit-{device_number:03d}"
-                                
+
                                 return device_type, professional_name
-                        except Exception as e:
-                            print(f"Error parsing beacon data: {e}")
-                            pass
-            
+                        except (ValueError, KeyError, AttributeError) as e:
+                            _LOGGER.debug("Error parsing beacon data: %s", e)
+
             # Fallback: use device name or generate generic name
             device_name = discovery_info.name or "Gemns™ IoT Device"
             if "Gemns" in device_name:
                 # Try to extract device type from name
                 if "Leak" in device_name or "leak" in device_name:
                     return "leak_sensor", "Gemns™ IoT Leak Sensor"
-                elif "Vibration" in device_name or "vibration" in device_name:
+                if "Vibration" in device_name or "vibration" in device_name:
                     return "vibration_sensor", "Gemns™ IoT Vibration Monitor"
-                elif "Switch" in device_name or "switch" in device_name:
+                if "Switch" in device_name or "switch" in device_name:
                     return "two_way_switch", "Gemns™ IoT Two-Way Switch"
-                elif "Button" in device_name or "button" in device_name:
+                if "Button" in device_name or "button" in device_name:
                     return "button", "Gemns™ IoT Button"
-            
-            # Default fallback
-            return "unknown", "Gemns™ IoT Device"
-            
-        except Exception as e:
-            print(f"Error extracting device info: {e}")
+                # Default fallback
+                return "unknown", "Gemns™ IoT Device"
+
+        except (ValueError, KeyError, AttributeError) as e:
+            _LOGGER.debug("Error extracting device info: %s", e)
             return "unknown", "Gemns™ IoT Device"
 
     async def async_step_import(self, import_data: dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
         return await self.async_step_user(import_data)
-

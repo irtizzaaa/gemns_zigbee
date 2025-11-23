@@ -5,41 +5,38 @@
 gemns:
   # MQTT Broker Configuration
   mqtt_broker: "mqtt://homeassistant:1883"
-  mqtt_username: "your_mqtt_username"  # Optional
-  mqtt_password: "your_mqtt_password"  # Optional
-  
+  mqtt_username: "your_mqtt_username" # Optional
+  mqtt_password: "your_mqtt_password" # Optional
+
   # Feature Toggles
   enable_ble: true
   enable_zigbee: true
-  
+
   # Timing Configuration
-  scan_interval: 0.02  # Device scan interval in seconds
-  heartbeat_interval: 10.0  # Heartbeat interval in seconds (0 to disable)
-  
+  scan_interval: 0.02 # Device scan interval in seconds
+  heartbeat_interval: 10.0 # Heartbeat interval in seconds (0 to disable)
+
   # Device Management
   enable_device_detection: true
   enable_device_pairing: true
   enable_device_management: true
   max_paired_devices: 50
-  
   # Serial Port Configuration
   include_patterns: "/dev/ttyUSB*,/dev/ttyACM*"
   exclude_patterns: "/dev/ttyS*,/dev/input*,/dev/hidraw*"
   serial_baudrate: 115200
   serial_timeout: 1.0
-  
+
   # Device Discovery
   who_are_you_message: "WHO_ARE_YOU"
   device_scan_interval: 5.0
-  
+
   # BLE Discovery Mode
-  ble_discovery_mode: "v0_manual"  # Options: v0_manual, v1_auto
-  
+  ble_discovery_mode: "v0_manual" # Options: v0_manual, v1_auto
+
   # Device Management Interface
   device_management_port: 8080
   pairing_timeout: 30.0
 
 # Alternative: Use MQTT Discovery
 mqtt:
-  # The integration will automatically discover devices via MQTT
-  # No additional configuration needed if using MQTT discovery

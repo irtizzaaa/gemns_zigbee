@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Gemns™ IoT Configuration",
+        "description": "Configure your Gemns™ IoT integration",
+        "data": {
+          "mqtt_broker": "MQTT Broker URL",
+          "mqtt_username": "MQTT Username (optional)",
+          "mqtt_password": "MQTT Password (optional)",
+          "enable_ble": "Enable BLE",
+          "enable_zigbee": "Enable Zigbee",
+          "scan_interval": "Device Scan Interval (seconds)",
+          "heartbeat_interval": "Heartbeat Interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mqtt_broker": "Invalid MQTT broker URL. Must start with mqtt:// or mqtts://"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Gemns™ IoT Options",
+        "description": "Configure Gemns™ IoT options",
+        "data": {
+          "enable_ble": "Enable BLE",
+          "enable_zigbee": "Enable Zigbee",
+          "scan_interval": "Device Scan Interval (seconds)",
+          "heartbeat_interval": "Heartbeat Interval (seconds)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "gemns_status": {
+        "name": "Gemns™ IoT Status"
+      }
+    },
+    "binary_sensor": {
+      "gemns_ble_connected": {
+        "name": "BLE Connected"
+      },
+      "gemns_zigbee_connected": {
+        "name": "Zigbee Connected"
+      }
+    }
+  }
+}

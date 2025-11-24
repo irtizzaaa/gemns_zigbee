@@ -9,9 +9,10 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .ble_coordinator import GemnsBluetoothProcessorCoordinator
-from .const import DOMAIN
+from .const import CONF_ENABLE_ZIGBEE, CONF_SERIAL_PORT, DOMAIN
 from .coordinator import GemnsDataCoordinator
 from .device_management import GemnsDeviceManager
+from .zigbee_coordinator import ZigbeeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,15 +77,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = GemnsDataCoordinator(hass, device_manager)
     await coordinator.async_setup()
 
+    # Initialize Zigbee coordinator if enabled
+    zigbee_coordinator = None
+    if entry.data.get(CONF_ENABLE_ZIGBEE, True):
+        serial_port = entry.data.get(CONF_SERIAL_PORT)
+        zigbee_coordinator = ZigbeeCoordinator(hass, device_manager, serial_port)
+        if await zigbee_coordinator.async_start():
+            _LOGGER.info("Zigbee coordinator started successfully")
+        else:
+            _LOGGER.warning("Failed to start Zigbee coordinator")
+            zigbee_coordinator = None
+
     # Store device manager and coordinator in hass data
     hass.data[DOMAIN][entry.entry_id] = {
         "device_manager": device_manager,
         "coordinator": coordinator,
+        "zigbee_coordinator": zigbee_coordinator,
         "config": entry.data
     }
 
     # Register services
-    await _register_services(hass, device_manager, entry)
+    await _register_services(hass, device_manager, entry, zigbee_coordinator)
 
     # Forward the setup to the relevant platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -106,16 +119,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.entry_id in hass.data[DOMAIN]:
             device_manager = hass.data[DOMAIN][entry.entry_id].get("device_manager")
             coordinator = hass.data[DOMAIN][entry.entry_id].get("coordinator")
+            zigbee_coordinator = hass.data[DOMAIN][entry.entry_id].get("zigbee_coordinator")
             if device_manager:
                 await device_manager.stop()
             if coordinator:
                 await coordinator.async_shutdown()
+            if zigbee_coordinator:
+                await zigbee_coordinator.async_stop()
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
 
 
-async def _register_services(hass: HomeAssistant, device_manager: GemnsDeviceManager, entry: ConfigEntry):
+async def _register_services(hass: HomeAssistant, device_manager: GemnsDeviceManager, entry: ConfigEntry, zigbee_coordinator: ZigbeeCoordinator | None = None):
     """Register Gemns™ IoT services."""
 
     async def add_device(service_call):
@@ -139,7 +155,16 @@ async def _register_services(hass: HomeAssistant, device_manager: GemnsDeviceMan
         # Trigger platform reload to create entities for new devices
         await hass.config_entries.async_reload(entry.entry_id)
 
+    async def start_pairing(service_call):
+        """Start Zigbee pairing mode."""
+        if zigbee_coordinator:
+            await zigbee_coordinator.send_pairing_command()
+            _LOGGER.info("Zigbee pairing mode started")
+        else:
+            _LOGGER.error("Zigbee coordinator not available")
+
     # Register services (removed MQTT dongle services)
     hass.services.async_register(DOMAIN, "add_device", add_device)
     hass.services.async_register(DOMAIN, "remove_device", remove_device)
     hass.services.async_register(DOMAIN, "create_entities", create_entities_for_devices)
+    hass.services.async_register(DOMAIN, "start_pairing", start_pairing)

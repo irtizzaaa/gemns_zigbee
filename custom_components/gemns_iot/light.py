@@ -23,9 +23,11 @@ from .const import (
     DEVICE_CATEGORY_LIGHT,
     DEVICE_STATUS_CONNECTED,
     DEVICE_STATUS_OFFLINE,
+    DEVICE_TYPE_ZIGBEE,
     DOMAIN,
     SIGNAL_DEVICE_ADDED,
     SIGNAL_DEVICE_UPDATED,
+    ZIGBEE_DEVICE_BULB,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ async def async_setup_entry(
     # Create light entities
     entities = []
     for device in light_devices:
-        light_entity = GemnsLight(device_manager, device)
+        light_entity = GemnsLight(device_manager, device, hass)
         entities.append(light_entity)
         _entities.append(light_entity)
 
@@ -72,7 +74,7 @@ async def async_setup_entry(
 
             if not existing_entity:
                 # Create new entity
-                new_entity = GemnsLight(device_manager, device_data)
+                new_entity = GemnsLight(device_manager, device_data, hass)
                 _entities.append(new_entity)
                 _add_entities_callback([new_entity])
                 _LOGGER.info("Created new light entity for device: %s", device_id)
@@ -84,11 +86,12 @@ async def async_setup_entry(
 class GemnsLight(LightEntity):
     """Representation of a Gemns™ IoT light."""
 
-    def __init__(self, device_manager, device: dict[str, Any]):
+    def __init__(self, device_manager, device: dict[str, Any], hass=None):
         """Initialize the light."""
         self.device_manager = device_manager
         self.device = device
         self.device_id = device.get("device_id")
+        self.hass = hass
         self._attr_name = device.get("name", self.device_id)
         self._attr_unique_id = f"{DOMAIN}_{self.device_id}"
         self._attr_should_poll = False
@@ -157,7 +160,46 @@ class GemnsLight(LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
         try:
-            # Prepare turn on message
+            # Check if this is a Zigbee device
+            is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            
+            if is_zigbee:
+                # Get Zigbee coordinator from hass data
+                config_entry_id = None
+                zigbee_coordinator = None
+                
+                # Find the config entry for this device
+                for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                    if isinstance(data, dict) and "zigbee_coordinator" in data:
+                        zigbee_coordinator = data.get("zigbee_coordinator")
+                        break
+                
+                if zigbee_coordinator:
+                    # Get Zigbee device ID
+                    zigbee_id = self.device.get("zigbee_id")
+                    if zigbee_id is None:
+                        _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
+                        return
+                    
+                    # Calculate hue from RGB if provided
+                    hue = None
+                    if ATTR_RGB_COLOR in kwargs:
+                        rgb_color = kwargs[ATTR_RGB_COLOR]
+                        self._attr_rgb_color = rgb_color
+                        self._attr_color_mode = ColorMode.RGB
+                        # Convert RGB to hue (simplified - you might want a better conversion)
+                        # For now, use a simple approximation
+                        hue = int((rgb_color[0] + rgb_color[1] + rgb_color[2]) / 3 * 65535 / 765)
+                    
+                    # Send Zigbee serial command
+                    await zigbee_coordinator.send_control_command(
+                        zigbee_id, ZIGBEE_DEVICE_BULB, True, hue
+                    )
+                else:
+                    _LOGGER.error("Zigbee coordinator not available")
+                    return
+            
+            # Prepare turn on message (for MQTT or logging)
             turn_on_message = {
                 "command": "turn_on",
                 "device_id": self.device_id,
@@ -174,8 +216,9 @@ class GemnsLight(LightEntity):
             if ATTR_RGB_COLOR in kwargs:
                 rgb_color = kwargs[ATTR_RGB_COLOR]
                 turn_on_message["rgb_color"] = list(rgb_color)
-                self._attr_rgb_color = rgb_color
-                self._attr_color_mode = ColorMode.RGB
+                if not is_zigbee:
+                    self._attr_rgb_color = rgb_color
+                    self._attr_color_mode = ColorMode.RGB
 
             # Handle color temperature
             if ATTR_COLOR_TEMP_KELVIN in kwargs:
@@ -196,11 +239,12 @@ class GemnsLight(LightEntity):
                 transition = kwargs[ATTR_TRANSITION]
                 turn_on_message["transition"] = transition
 
-            # Send command
-            await self.device_manager.publish_mqtt(
-                f"gemns/device/{self.device_id}/command",
-                json.dumps(turn_on_message)
-            )
+            # Send command via MQTT if not Zigbee
+            if not is_zigbee:
+                await self.device_manager.publish_mqtt(
+                    f"gemns/device/{self.device_id}/command",
+                    json.dumps(turn_on_message)
+                )
 
             # Log the command for debugging
             _LOGGER.info("Light command sent: %s", turn_on_message)
@@ -227,7 +271,33 @@ class GemnsLight(LightEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
         try:
-            # Send turn off command
+            # Check if this is a Zigbee device
+            is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            
+            if is_zigbee:
+                # Get Zigbee coordinator from hass data
+                zigbee_coordinator = None
+                for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                    if isinstance(data, dict) and "zigbee_coordinator" in data:
+                        zigbee_coordinator = data.get("zigbee_coordinator")
+                        break
+                
+                if zigbee_coordinator:
+                    # Get Zigbee device ID
+                    zigbee_id = self.device.get("zigbee_id")
+                    if zigbee_id is None:
+                        _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
+                        return
+                    
+                    # Send Zigbee serial command
+                    await zigbee_coordinator.send_control_command(
+                        zigbee_id, ZIGBEE_DEVICE_BULB, False
+                    )
+                else:
+                    _LOGGER.error("Zigbee coordinator not available")
+                    return
+            
+            # Send turn off command (for MQTT or logging)
             turn_off_message = {
                 "command": "turn_off",
                 "device_id": self.device_id,
@@ -239,10 +309,12 @@ class GemnsLight(LightEntity):
                 transition = kwargs[ATTR_TRANSITION]
                 turn_off_message["transition"] = transition
 
-            await self.device_manager.publish_mqtt(
-                f"gemns/device/{self.device_id}/command",
-                json.dumps(turn_off_message)
-            )
+            # Send via MQTT if not Zigbee
+            if not is_zigbee:
+                await self.device_manager.publish_mqtt(
+                    f"gemns/device/{self.device_id}/command",
+                    json.dumps(turn_off_message)
+                )
 
             # Update device state in device manager
             if self.device_id in self.device_manager.devices:

@@ -51,7 +51,7 @@ BLE_DISCOVERY_MODE_V1_AUTO: Final = "v1_auto"
 
 # Integration name and version
 INTEGRATION_NAME: Final = "Gemns™ IoT"
-INTEGRATION_VERSION: Final = "1.0.0"
+INTEGRATION_VERSION: Final = "1.0.2"
 
 # BLE Packet Format Constants
 BLE_COMPANY_ID: Final = 0x0F9C  # Gemns™ IoT company ID
@@ -81,3 +81,20 @@ SWITCH_TYPE_TOGGLE: Final = 9
 # Signals
 SIGNAL_DEVICE_UPDATED: Final = f"{DOMAIN}_device_updated"
 SIGNAL_DEVICE_ADDED: Final = f"{DOMAIN}_device_added"
+
+# Zigbee Configuration
+CONF_SERIAL_PORT: Final = "serial_port"
+
+# Zigbee Command Constants
+ZIGBEE_CMD_PREFIX: Final = "$AT"
+ZIGBEE_CMD_ADD: Final = "add"
+ZIGBEE_CMD_DEL: Final = "del"
+ZIGBEE_CMD_STATE: Final = "state"
+ZIGBEE_CMD_PAIR: Final = "pair"
+ZIGBEE_DEVICE_BULB: Final = "bulb"
+ZIGBEE_DEVICE_SWITCH: Final = "switch"
+
+# Serial Settings
+SERIAL_BAUDRATE: Final = 115200
+SERIAL_TIMEOUT: Final = 5.0
+SERIAL_LINE_ENDING: Final = "\r\n"

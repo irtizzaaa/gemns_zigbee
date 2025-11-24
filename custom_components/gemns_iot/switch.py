@@ -19,9 +19,11 @@ from .const import (
     DEVICE_CATEGORY_TOGGLE,
     DEVICE_STATUS_CONNECTED,
     DEVICE_STATUS_OFFLINE,
+    DEVICE_TYPE_ZIGBEE,
     DOMAIN,
     SIGNAL_DEVICE_ADDED,
     SIGNAL_DEVICE_UPDATED,
+    ZIGBEE_DEVICE_SWITCH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,7 +57,7 @@ async def async_setup_entry(
     # Create switch entities
     entities = []
     for device in switch_devices:
-        switch_entity = GemnsSwitch(device_manager, device)
+        switch_entity = GemnsSwitch(device_manager, device, hass)
         entities.append(switch_entity)
         _entities.append(switch_entity)
 
@@ -73,7 +75,7 @@ async def async_setup_entry(
 
             if not existing_entity:
                 # Create new entity
-                new_entity = GemnsSwitch(device_manager, device_data)
+                new_entity = GemnsSwitch(device_manager, device_data, hass)
                 _entities.append(new_entity)
                 _add_entities_callback([new_entity])
                 _LOGGER.info("Created new switch entity for device: %s", device_id)
@@ -85,11 +87,12 @@ async def async_setup_entry(
 class GemnsSwitch(SwitchEntity):
     """Representation of a Gemns™ IoT switch."""
 
-    def __init__(self, device_manager, device: dict[str, Any]):
+    def __init__(self, device_manager, device: dict[str, Any], hass=None):
         """Initialize the switch."""
         self.device_manager = device_manager
         self.device = device
         self.device_id = device.get("device_id")
+        self.hass = hass
         self._attr_name = device.get("name", self.device_id)
         self._attr_unique_id = f"{DOMAIN}_{self.device_id}"
         self._attr_should_poll = False
@@ -165,11 +168,37 @@ class GemnsSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         try:
-            # Handle color mode for light switches
-            if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
-                await self._turn_on_light(**kwargs)
+            # Check if this is a Zigbee device
+            is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            
+            if is_zigbee:
+                # Get Zigbee coordinator from hass data
+                zigbee_coordinator = None
+                for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                    if isinstance(data, dict) and "zigbee_coordinator" in data:
+                        zigbee_coordinator = data.get("zigbee_coordinator")
+                        break
+                
+                if zigbee_coordinator:
+                    # Get Zigbee device ID
+                    zigbee_id = self.device.get("zigbee_id")
+                    if zigbee_id is None:
+                        _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
+                        return
+                    
+                    # Send Zigbee serial command
+                    await zigbee_coordinator.send_control_command(
+                        zigbee_id, ZIGBEE_DEVICE_SWITCH, True
+                    )
+                else:
+                    _LOGGER.error("Zigbee coordinator not available")
+                    return
             else:
-                await self._turn_on_switch()
+                # Handle color mode for light switches
+                if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
+                    await self._turn_on_light(**kwargs)
+                else:
+                    await self._turn_on_switch()
 
             # Update device state in device manager
             if self.device_id in self.device_manager.devices:
@@ -187,17 +216,43 @@ class GemnsSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         try:
-            # Send turn off command
-            turn_off_message = {
-                "command": "turn_off",
-                "device_id": self.device_id,
-                "timestamp": datetime.now(UTC).isoformat()
-            }
+            # Check if this is a Zigbee device
+            is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            
+            if is_zigbee:
+                # Get Zigbee coordinator from hass data
+                zigbee_coordinator = None
+                for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                    if isinstance(data, dict) and "zigbee_coordinator" in data:
+                        zigbee_coordinator = data.get("zigbee_coordinator")
+                        break
+                
+                if zigbee_coordinator:
+                    # Get Zigbee device ID
+                    zigbee_id = self.device.get("zigbee_id")
+                    if zigbee_id is None:
+                        _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
+                        return
+                    
+                    # Send Zigbee serial command
+                    await zigbee_coordinator.send_control_command(
+                        zigbee_id, ZIGBEE_DEVICE_SWITCH, False
+                    )
+                else:
+                    _LOGGER.error("Zigbee coordinator not available")
+                    return
+            else:
+                # Send turn off command
+                turn_off_message = {
+                    "command": "turn_off",
+                    "device_id": self.device_id,
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
 
-            await self.device_manager.publish_mqtt(
-                f"gemns/device/{self.device_id}/command",
-                json.dumps(turn_off_message)
-            )
+                await self.device_manager.publish_mqtt(
+                    f"gemns/device/{self.device_id}/command",
+                    json.dumps(turn_off_message)
+                )
 
             # Update device state in device manager
             if self.device_id in self.device_manager.devices:

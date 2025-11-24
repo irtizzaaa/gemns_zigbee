@@ -111,6 +111,6 @@
     "MZ"
   ],
   "render_readme": true,
-  "domains": ["gemns_iot"],
+  "domains": ["gemns"],
   "iot_class": "Local Push"
 }

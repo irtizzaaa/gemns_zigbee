@@ -34,7 +34,7 @@ async def async_setup_entry(
     entities.append(ble_toggle)
 
     # Zigbee Toggle
-    zigbee_toggle = GemnsZigbeeToggle(device_manager)
+    zigbee_toggle = GemnsZigbeeToggle(device_manager, hass)
     entities.append(zigbee_toggle)
 
     if entities:
@@ -90,9 +90,10 @@ class GemnsBLEToggle(InputBoolean):
 class GemnsZigbeeToggle(InputBoolean):
     """Representation of Zigbee toggle."""
 
-    def __init__(self, device_manager):
+    def __init__(self, device_manager, hass=None):
         """Initialize the Zigbee toggle."""
         self.device_manager = device_manager
+        self.hass = hass
         self._attr_name = "Gemns™ IoT Zigbee Enabled"
         self._attr_unique_id = f"{DOMAIN}_zigbee_enabled"
         self._attr_icon = "mdi:zigbee"
@@ -118,6 +119,14 @@ class GemnsZigbeeToggle(InputBoolean):
         # Update config
         self.device_manager.config["enable_zigbee"] = True
 
+        # Start Zigbee coordinator if available
+        if self.hass:
+            for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                if isinstance(data, dict):
+                    zigbee_coordinator = data.get("zigbee_coordinator")
+                    if zigbee_coordinator and not zigbee_coordinator._running:
+                        await zigbee_coordinator.async_start()
+
         # Fire event
         self.hass.bus.async_fire(f"{DOMAIN}_zigbee_toggled", {"enabled": True})
 
@@ -128,6 +137,14 @@ class GemnsZigbeeToggle(InputBoolean):
 
         # Update config
         self.device_manager.config["enable_zigbee"] = False
+
+        # Stop Zigbee coordinator if available
+        if self.hass:
+            for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
+                if isinstance(data, dict):
+                    zigbee_coordinator = data.get("zigbee_coordinator")
+                    if zigbee_coordinator and zigbee_coordinator._running:
+                        await zigbee_coordinator.async_stop()
 
         # Fire event
         self.hass.bus.async_fire(f"{DOMAIN}_zigbee_toggled", {"enabled": False})

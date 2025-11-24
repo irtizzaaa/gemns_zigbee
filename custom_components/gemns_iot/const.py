@@ -1,7 +1,7 @@
 """Constants for the Gemns™ IoT integration."""
 from typing import Final
 
-DOMAIN: Final = "gemns_iot"
+DOMAIN: Final = "gemns"
 
 # Configuration keys
 CONF_MQTT_BROKER: Final = "mqtt_broker"

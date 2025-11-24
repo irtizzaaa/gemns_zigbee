@@ -194,3 +194,4 @@ class GemnsZigbeeSensor(BinarySensorEntity):
     async def async_update(self) -> None:
         """Update sensor state."""
         self._update_state()
+        

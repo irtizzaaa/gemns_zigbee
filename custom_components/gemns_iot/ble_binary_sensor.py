@@ -111,7 +111,6 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             "ble_status": "inactive",
         }
 
-        # Add data from coordinator if available
         if self.coordinator.data:
             attrs.update({
                 "rssi": self.coordinator.data.get("rssi"),
@@ -120,7 +119,6 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
                 "last_update_success": getattr(self.coordinator, 'last_update_success', True),
             })
 
-            # Add sensor-specific attributes
             if "sensor_data" in self.coordinator.data:
                 sensor_data = self.coordinator.data["sensor_data"]
                 if "leak_detected" in sensor_data:
@@ -129,6 +127,10 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
                     attrs["event_counter"] = sensor_data["event_counter"]
                 if "sensor_event" in sensor_data:
                     attrs["sensor_event"] = sensor_data["sensor_event"]
+                if "event_type" in sensor_data:
+                    attrs["event_type"] = sensor_data["event_type"]
+                if "button_pressed" in sensor_data:
+                    attrs["button_pressed"] = sensor_data["button_pressed"]
 
         return attrs
 
@@ -160,9 +162,8 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
     def _update_from_coordinator(self) -> None:
         """Update binary sensor state from coordinator data."""
         if not self.coordinator.data:
-            # Simple restart detection: if device exists but no data, default to off
             self._attr_available = True
-            self._attr_is_on = False  # Default to off when device restarts
+            self._attr_is_on = False
             _LOGGER.debug("BLE binary sensor %s: No coordinator data - defaulting to off (restart scenario)", self.address)
             return
 
@@ -198,14 +199,14 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
         device_type = self._device_type.lower()
 
         if device_type == "push_button":
-            self._attr_device_class = BinarySensorDeviceClass.PROBLEM
-            self._attr_name = f"Gemns™ IoT Push Button {self._get_professional_device_id()}"
+            self._attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+            self._attr_name = f"Gemns™ IoT Button {self._get_professional_device_id()}"
             self._attr_icon = "mdi:gesture-tap-button"
 
         elif device_type == "on_off_switch":
-            self._attr_device_class = BinarySensorDeviceClass.OPENING
-            self._attr_name = f"Gemns™ IoT On/Off Switch {self._get_professional_device_id()}"
-            self._attr_icon = "mdi:toggle-switch"
+            self._attr_device_class = BinarySensorDeviceClass.OCCUPANCY
+            self._attr_name = f"Gemns™ IoT Button {self._get_professional_device_id()}"
+            self._attr_icon = "mdi:gesture-tap-button"
 
         elif device_type == "door_sensor":
             self._attr_device_class = BinarySensorDeviceClass.DOOR

@@ -30,22 +30,18 @@ async def async_setup_entry(
     """Set up Gemns™ IoT BLE sensors from a config entry."""
     _LOGGER.info("Setting up BLE sensor for entry %s", config_entry.entry_id)
 
-    # Get address from config data or unique_id
     address = config_entry.data.get(CONF_ADDRESS)
     if not address or address == "00:00:00:00:00:00":
         address = config_entry.unique_id
 
-    # If still no address, skip BLE sensor setup
     if not address or address.startswith(("gemns_temp_", "gemns_discovery_")):
         _LOGGER.info("No real BLE device address found, skipping BLE sensor setup for entry %s", config_entry.entry_id)
         return
 
     _LOGGER.info("BLE device address found: %s", address)
 
-    # Get the BLE coordinator from runtime_data
     coordinator = config_entry.runtime_data
     if not coordinator:
-        # Fallback: try to get from hass.data
         _LOGGER.warning("No coordinator in runtime_data, trying hass.data for entry %s", config_entry.entry_id)
         try:
             coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
@@ -55,45 +51,43 @@ async def async_setup_entry(
 
     _LOGGER.info("BLE coordinator found for entry %s, creating sensor entities", config_entry.entry_id)
 
-    # Create entities based on device type
     entities = []
-
-    # Get device type from config to determine which entities to create
     device_type = config_entry.data.get("device_name", "unknown")
-    device_type = config_entry.data.get("device_type", 4)
+    device_type_num = config_entry.data.get("device_type", 4)
 
-    _LOGGER.info("Creating entities for device type: %s, device_type: %d", device_type, device_type)
+    _LOGGER.info("Creating entities for device type: %s, device_type: %d", device_type, device_type_num)
 
-    # Create entities based on device type (matching device_type_t enum)
-    if device_type in ["leak_sensor"] or device_type == 4:
-        # DEVICE_TYPE_LEAK_SENSOR = 4 - create binary sensor only
+    if device_type in ["leak_sensor"] or device_type_num == 4:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
         _LOGGER.info("Created binary sensor entity for leak sensor")
 
-    elif device_type in ["vibration_sensor"] or device_type == 2:
-        # DEVICE_TYPE_VIBRATION_MONITOR = 2 - create binary sensor only
+    elif device_type in ["vibration_sensor"] or device_type_num == 2:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
         _LOGGER.info("Created binary sensor entity for vibration monitor")
 
-    elif device_type in ["two_way_switch"] or device_type == 3:
-        # DEVICE_TYPE_TWO_WAY_SWITCH = 3 - create binary sensor only
+    elif device_type in ["two_way_switch"] or device_type_num == 3:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
         _LOGGER.info("Created binary sensor entity for two-way switch")
 
-    elif device_type in ["button", "legacy"] or device_type in [0, 1]:
-        # DEVICE_TYPE_LEGACY = 0, DEVICE_TYPE_BUTTON = 1 - create binary sensor only
+    elif device_type in ["button", "legacy"] or device_type_num in [0, 1]:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
         _LOGGER.info("Created binary sensor entity for button/legacy device")
 
     else:
-        # Unknown device type - create binary sensor (fallback)
         _LOGGER.warning("Unknown device type %s, creating binary sensor", device_type)
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
+
+    if device_type_num in [0, 1, 3]:
+        accel_x_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "x")
+        accel_y_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "y")
+        accel_z_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "z")
+        entities.extend([accel_x_entity, accel_y_entity, accel_z_entity])
+        _LOGGER.info("Created accelerometer sensor entities (x, y, z) for device_type=%d", device_type_num)
 
     if entities:
         async_add_entities(entities)
@@ -110,14 +104,11 @@ class GemnsBLESensor(SensorEntity):
         """Initialize the BLE sensor."""
         self.coordinator = coordinator
         self.config_entry = config_entry
-        # Don't store address statically - get it dynamically from config data
 
-        # Set up basic entity properties
         self._attr_name = config_entry.data.get(CONF_NAME, "Gemns™ IoT Device")
         self._attr_unique_id = f"{DOMAIN}_{config_entry.entry_id}"
         self._attr_should_poll = False
 
-        # Set device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, config_entry.entry_id)},
             name=self._attr_name,
@@ -126,14 +117,11 @@ class GemnsBLESensor(SensorEntity):
             sw_version=self.coordinator.data.get("firmware_version", "1.0.0"),
         )
 
-        # Initialize sensor properties
         self._attr_device_class = None
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = None
         self._attr_native_value = None
         self._attr_available = False
-
-        # Device type will be determined from coordinator data
         self._device_type = "unknown"
 
     @property
@@ -161,20 +149,18 @@ class GemnsBLESensor(SensorEntity):
             "ble_status": "inactive",
         }
 
-        # Add data from coordinator if available
         if self.coordinator.data:
             attrs.update({
                 "rssi": self.coordinator.data.get("rssi"),
                 "signal_strength": self.coordinator.data.get("signal_strength"),
                 "battery_level": self.coordinator.data.get("battery_level"),
                 "last_seen": self.coordinator.data.get("timestamp"),
-                "ble_active": True,  # If we have data, BLE is active
-                "ble_connected": self.coordinator.available,  # Use coordinator availability
+                "ble_active": True,
+                "ble_connected": self.coordinator.available,
                 "ble_status": "active" if self.coordinator.available else "inactive",
                 "last_update_success": getattr(self.coordinator, 'last_update_success', True),
             })
 
-            # Add sensor-specific attributes
             if "sensor_data" in self.coordinator.data:
                 sensor_data = self.coordinator.data["sensor_data"]
                 if "leak_detected" in sensor_data:
@@ -189,9 +175,7 @@ class GemnsBLESensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Call when entity is added to hass."""
         await super().async_added_to_hass()
-        # Register with coordinator to receive updates
         self._unsub_coordinator = self.coordinator.async_add_listener(self._handle_coordinator_update)
-        # Set up cleanup when entity is removed
         self.async_on_remove(self._unsub_coordinator)
 
     def _handle_coordinator_update(self) -> None:
@@ -205,8 +189,7 @@ class GemnsBLESensor(SensorEntity):
     def _update_from_coordinator(self) -> None:
         """Update sensor state from coordinator data."""
         if not self.coordinator.data:
-            # Simple restart detection: if device exists but no data, keep available but no value
-            self._attr_available = True  # Keep available, just no data
+            self._attr_available = True
             self._attr_native_value = None
             _LOGGER.debug("BLE sensor %s: No coordinator data - device available but no data (restart scenario)", self.address)
             return
@@ -214,20 +197,12 @@ class GemnsBLESensor(SensorEntity):
         data = self.coordinator.data
         _LOGGER.info("UPDATING SENSOR: %s | Coordinator data: %s", self.address, data)
 
-        # Update device type
         self._device_type = data.get("device_type", "unknown")
         _LOGGER.info("DEVICE TYPE: %s | Type: %s", self.address, self._device_type)
 
-        # Set sensor properties based on device type
         self._set_sensor_properties()
-
-        # Update device info with proper name and model
         self._update_device_info()
-
-        # Extract sensor value
         self._extract_sensor_value(data)
-
-        # Update availability
         self._attr_available = True
         _LOGGER.info("SENSOR UPDATED: %s | Available: %s | Value: %s | BLE_active: %s | Coordinator_available: %s",
                      self.address, self._attr_available, self._attr_native_value, True, self.coordinator.available)
@@ -236,21 +211,15 @@ class GemnsBLESensor(SensorEntity):
         """Set sensor properties based on device type."""
         device_type = self._device_type.lower()
 
-        # Reset to defaults
         self._attr_device_class = None
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = None
         self._attr_icon = None
 
-        # Set properties based on device type
-        # Skip leak sensors - they should be handled by binary sensor
         if "leak" in device_type:
-            # Don't create sensor entities for leak sensors
             return
 
-        # Skip switch devices - they should be handled by switch platform
         if "switch" in device_type:
-            # Don't create sensor entities for switch devices
             return
 
         if "temperature" in device_type:
@@ -286,7 +255,6 @@ class GemnsBLESensor(SensorEntity):
         """Update device info with proper name and model."""
         device_type = self._device_type.lower()
 
-        # Set model based on device type
         model_map = {
             "leak_sensor": "Leak Sensor",
             "button": "Button",
@@ -300,11 +268,8 @@ class GemnsBLESensor(SensorEntity):
         }
 
         model = model_map.get(device_type, "IoT Sensor")
-
-        # Set device image based on device type
         device_image = self._get_device_image(device_type)
 
-        # Update device info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self.address)},
             name=self._attr_name,
@@ -313,26 +278,21 @@ class GemnsBLESensor(SensorEntity):
             sw_version=self.coordinator.data.get("firmware_version", "1.0.0"),
         )
 
-        # Set device image if available
         if device_image:
             self._attr_device_info["image"] = device_image
 
     def _get_device_image(self, device_type: str) -> str:
         """Get device image URL based on device type."""
-        # Use Home Assistant brand repository for icons
         return "https://brands.home-assistant.io/gemns/icon.png"
 
     def _extract_sensor_value(self, data: dict[str, Any]) -> None:
         """Extract sensor value from coordinator data."""
         _LOGGER.info("EXTRACTING SENSOR VALUE: %s | Data: %s", self.address, data)
 
-        # Try to get sensor value from sensor_data
         sensor_data = data.get("sensor_data", {})
         _LOGGER.info("SENSOR DATA: %s | Sensor data: %s", self.address, sensor_data)
 
-        # Skip leak sensors - they should be handled by binary sensor
         if "leak_detected" in sensor_data:
-            # Don't process leak sensors in regular sensor
             _LOGGER.info("LEAK SENSOR SKIPPED: %s | Leak detected: %s (handled by binary sensor)",
                         self.address, sensor_data["leak_detected"])
 
@@ -357,17 +317,13 @@ class GemnsBLESensor(SensorEntity):
                         self.address, self._attr_native_value)
 
         elif "battery_level" in data and data["battery_level"] is not None:
-            # Use battery level as a fallback sensor value
             self._attr_native_value = data["battery_level"]
             _LOGGER.info("BATTERY LEVEL: %s | Battery: %s",
                         self.address, self._attr_native_value)
 
         else:
-            # No specific sensor value found, use RSSI as a signal strength indicator
             rssi = data.get("rssi")
             if rssi is not None:
-                # Convert RSSI to a percentage (rough approximation)
-                # RSSI typically ranges from -100 (very weak) to -30 (very strong)
                 signal_percentage = max(0, min(100, (rssi + 100) * 100 / 70))
                 self._attr_native_value = round(signal_percentage, 1)
                 _LOGGER.info("RSSI SIGNAL: %s | RSSI: %s dBm | Signal: %s%%",
@@ -378,4 +334,113 @@ class GemnsBLESensor(SensorEntity):
 
     async def async_update(self) -> None:
         """Update sensor state."""
+        await self.coordinator.async_request_refresh()
+
+
+class GemnsBLEAccelerometerSensor(SensorEntity):
+    """Representation of a Gemns™ IoT BLE accelerometer sensor (ax, ay, or az)."""
+
+    def __init__(
+        self,
+        coordinator: GemnsBluetoothProcessorCoordinator,
+        config_entry: ConfigEntry,
+        axis: str,
+    ) -> None:
+        """Initialize the BLE accelerometer sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        self.axis = axis
+
+        axis_name = axis.upper()
+        self._attr_name = f"{config_entry.data.get(CONF_NAME, 'Gemns™ IoT Device')} Accelerometer {axis_name}"
+        self._attr_unique_id = f"{DOMAIN}_{config_entry.entry_id}_accelerometer_{axis}"
+        self._attr_should_poll = False
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=config_entry.data.get(CONF_NAME, "Gemns™ IoT Device"),
+            manufacturer="Gemns™ IoT",
+            model="Accelerometer Sensor",
+            sw_version=self.coordinator.data.get("firmware_version", "1.0.0"),
+        )
+
+        self._attr_device_class = None
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_native_unit_of_measurement = "m/s²"
+        self._attr_native_value = None
+        self._attr_available = False
+        self._attr_icon = "mdi:axis-arrow"
+
+    @property
+    def address(self) -> str:
+        """Get the current MAC address from config data."""
+        return self.config_entry.data.get(CONF_ADDRESS, self.config_entry.unique_id)
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.available and self._attr_available
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes."""
+        attrs = {
+            "address": self.address,
+            "axis": self.axis,
+            "rssi": None,
+            "last_seen": None,
+        }
+
+        if self.coordinator.data:
+            attrs.update({
+                "rssi": self.coordinator.data.get("rssi"),
+                "last_seen": self.coordinator.data.get("timestamp"),
+            })
+
+        return attrs
+
+    async def async_added_to_hass(self) -> None:
+        """Call when entity is added to hass."""
+        await super().async_added_to_hass()
+        self._unsub_coordinator = self.coordinator.async_add_listener(self._handle_coordinator_update)
+        self.async_on_remove(self._unsub_coordinator)
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        try:
+            self._update_from_coordinator()
+            self.async_write_ha_state()
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
+            _LOGGER.error("Error handling coordinator update for accelerometer %s axis %s: %s", self.address, self.axis, e)
+
+    def _update_from_coordinator(self) -> None:
+        """Update accelerometer sensor state from coordinator data."""
+        if not self.coordinator.data:
+            self._attr_available = False
+            self._attr_native_value = None
+            _LOGGER.debug("BLE accelerometer sensor %s (axis %s): No coordinator data", self.address, self.axis)
+            return
+
+        data = self.coordinator.data
+        sensor_data = data.get("sensor_data", {})
+        accelerometer = sensor_data.get("accelerometer", {})
+
+        if isinstance(accelerometer, dict):
+            axis_key = f"a{self.axis}"
+            if axis_key in accelerometer:
+                self._attr_native_value = accelerometer[axis_key]
+                self._attr_available = True
+                _LOGGER.info("ACCELEROMETER %s: %s | Axis: %s | Value: %s",
+                            self.address, axis_key, self.axis, self._attr_native_value)
+            else:
+                self._attr_available = False
+                self._attr_native_value = None
+                _LOGGER.debug("ACCELEROMETER %s: No %s data available", self.address, axis_key)
+        else:
+            self._attr_available = False
+            self._attr_native_value = None
+            _LOGGER.debug("ACCELEROMETER %s: No accelerometer data in sensor_data", self.address)
+
+    async def async_update(self) -> None:
+        """Update accelerometer sensor state."""
         await self.coordinator.async_request_refresh()

@@ -252,8 +252,9 @@ class GemnsPacket:
 
         if device_type == 0:
             if payload_length >= 10:
+                event_type = sensor_data.get('event_type', 0)
                 sensor_data.update({
-                    'button_pressed': sensor_data.get('event_type', 0) == 0,
+                    'button_pressed': event_type == 0,
                 })
             else:
                 sensor_data.update({
@@ -262,12 +263,13 @@ class GemnsPacket:
 
         elif device_type == 1:
             if payload_length >= 10:
+                event_type = sensor_data.get('event_type', 0)
                 sensor_data.update({
-                    'switch_on': sensor_data.get('event_type', 0) == 3,
+                    'button_pressed': event_type == 0,
                 })
             else:
                 sensor_data.update({
-                    'switch_on': sensor_data.get('sensor_event', 0) == 3,
+                    'button_pressed': sensor_data.get('sensor_event', 0) == 0,
                 })
 
         elif device_type == 2:
@@ -292,12 +294,16 @@ class GemnsPacket:
 
         elif device_type == 3:
             if payload_length >= 10:
+                event_type = sensor_data.get('event_type', 0)
                 sensor_data.update({
-                    'switch_on': sensor_data.get('event_type', 0) == 3,
+                    'switch_on': event_type == 2,
+                    'switch_off': event_type == 3,
                 })
             else:
+                sensor_event = sensor_data.get('sensor_event', 0)
                 sensor_data.update({
-                    'switch_on': sensor_data.get('sensor_event', 0) == 3,
+                    'switch_on': sensor_event == 2,
+                    'switch_off': sensor_event == 3,
                 })
 
         return sensor_data

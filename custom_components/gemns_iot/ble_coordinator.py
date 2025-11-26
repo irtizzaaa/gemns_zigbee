@@ -193,9 +193,9 @@ class GemnsBluetoothProcessorCoordinator(
                 data["name"] = f"Gemns™ IoT Door Sensor {professional_id}"
                 _LOGGER.info("  Identified as: door_sensor")
             elif device_type == 3:
-                data["device_type"] = "two_way_switch"
-                data["name"] = f"Gemns™ IoT Two Way Switch {professional_id}"
-                _LOGGER.info("  Identified as: two_way_switch")
+                data["device_type"] = "door_sensor"
+                data["name"] = f"Gemns™ IoT Door Sensor {professional_id}"
+                _LOGGER.info("  Identified as: door_sensor")
             elif device_type == 4:
                 data["device_type"] = "leak_sensor"
                 data["name"] = f"Gemns™ IoT Leak Sensor {professional_id}"

@@ -101,6 +101,13 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
         return self.coordinator.available and self._attr_available
 
     @property
+    def state(self) -> str:
+        """Return the state of the binary sensor."""
+        if self._device_type == "door_sensor":
+            return "door opened" if self._attr_is_on else "door closed"
+        return super().state
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity specific state attributes."""
         attrs = {

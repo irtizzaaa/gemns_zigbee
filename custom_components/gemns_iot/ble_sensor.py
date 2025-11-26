@@ -67,10 +67,10 @@ async def async_setup_entry(
         entities.append(binary_sensor_entity)
         _LOGGER.info("Created binary sensor entity for vibration monitor")
 
-    elif device_type in ["two_way_switch"] or device_type_num == 3:
+    elif device_type in ["door_sensor"] or device_type_num == 3:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
-        _LOGGER.info("Created binary sensor entity for two-way switch")
+        _LOGGER.info("Created binary sensor entity for door sensor")
 
     elif device_type in ["button", "legacy"] or device_type_num in [0, 1]:
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)

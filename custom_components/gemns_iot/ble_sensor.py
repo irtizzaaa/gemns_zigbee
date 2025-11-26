@@ -82,12 +82,6 @@ async def async_setup_entry(
         binary_sensor_entity = GemnsBLEBinarySensor(coordinator, config_entry)
         entities.append(binary_sensor_entity)
 
-    if device_type_num in [0, 1, 3]:
-        accel_x_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "x")
-        accel_y_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "y")
-        accel_z_entity = GemnsBLEAccelerometerSensor(coordinator, config_entry, "z")
-        entities.extend([accel_x_entity, accel_y_entity, accel_z_entity])
-        _LOGGER.info("Created accelerometer sensor entities (x, y, z) for device_type=%d", device_type_num)
 
     if entities:
         async_add_entities(entities)
@@ -443,4 +437,140 @@ class GemnsBLEAccelerometerSensor(SensorEntity):
 
     async def async_update(self) -> None:
         """Update accelerometer sensor state."""
+        await self.coordinator.async_request_refresh()
+
+
+class GemnsBLEToggleLastToggledSensor(SensorEntity):
+    """Representation of a Gemns™ IoT toggle switch last toggled time sensor."""
+
+    def __init__(
+        self,
+        coordinator: GemnsBluetoothProcessorCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the toggle last toggled sensor."""
+        self.coordinator = coordinator
+        self.config_entry = config_entry
+        self._last_toggled = None
+        self._previous_event_counter = None
+
+        self._attr_name = f"{config_entry.data.get(CONF_NAME, 'Gemns™ IoT Device')} Toggle"
+        self._attr_unique_id = f"{DOMAIN}_{config_entry.entry_id}_toggle_last_toggled"
+        self._attr_should_poll = False
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=config_entry.data.get(CONF_NAME, "Gemns™ IoT Device"),
+            manufacturer="Gemns™ IoT",
+            model="Toggle Switch",
+            sw_version=self.coordinator.data.get("firmware_version", "1.0.0"),
+        )
+
+        self._attr_device_class = None
+        self._attr_state_class = None
+        self._attr_native_unit_of_measurement = None
+        self._attr_native_value = "Never toggled"
+        self._attr_available = False
+        self._attr_icon = "mdi:toggle-switch"
+
+    @property
+    def address(self) -> str:
+        """Get the current MAC address from config data."""
+        return self.config_entry.data.get(CONF_ADDRESS, self.config_entry.unique_id)
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.available and self._attr_available
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return entity specific state attributes."""
+        attrs = {
+            "address": self.address,
+            "device_type": "toggle_switch",
+            "last_toggled_iso": self._last_toggled,
+        }
+        
+        if self._last_toggled:
+            try:
+                from datetime import datetime
+                toggled_dt = datetime.fromisoformat(self._last_toggled.replace('Z', '+00:00'))
+                attrs["last_toggled_datetime"] = toggled_dt.strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, AttributeError):
+                pass
+        
+        return attrs
+
+    async def async_added_to_hass(self) -> None:
+        """Call when entity is added to hass."""
+        await super().async_added_to_hass()
+        self._unsub_coordinator = self.coordinator.async_add_listener(self._handle_coordinator_update)
+        self.async_on_remove(self._unsub_coordinator)
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        try:
+            self._update_from_coordinator()
+            self.async_write_ha_state()
+        except (ValueError, KeyError, AttributeError) as e:
+            _LOGGER.error("Error handling coordinator update for toggle last toggled sensor %s: %s", self.address, e)
+
+    def _update_from_coordinator(self) -> None:
+        """Update sensor state by detecting toggle events from coordinator data."""
+        if not self.coordinator.data:
+            self._attr_available = False
+            self._attr_native_value = "Never toggled"
+            return
+
+        data = self.coordinator.data
+        sensor_data = data.get("sensor_data", {})
+        
+        event_counter = sensor_data.get("event_counter", 0)
+        sensor_event = sensor_data.get("sensor_event", 0)
+        event_type = sensor_data.get("event_type", 0)
+        
+        is_toggle_event = (
+            event_type == 2 or
+            sensor_event == 2 or
+            (event_counter is not None and event_counter != self._previous_event_counter and self._previous_event_counter is not None)
+        )
+        
+        if is_toggle_event:
+            from datetime import datetime
+            self._last_toggled = datetime.now().isoformat()
+            _LOGGER.info("Toggle switch %s: Toggle detected, updating last_toggled to %s", self.address, self._last_toggled)
+        
+        if event_counter is not None:
+            self._previous_event_counter = event_counter
+        if self._last_toggled:
+            try:
+                from datetime import datetime
+                toggled_dt = datetime.fromisoformat(self._last_toggled.replace('Z', '+00:00'))
+                now = datetime.now(toggled_dt.tzinfo) if toggled_dt.tzinfo else datetime.now()
+                time_diff = now - toggled_dt.replace(tzinfo=None) if not toggled_dt.tzinfo else now - toggled_dt
+                
+                if time_diff.total_seconds() < 60:
+                    self._attr_native_value = f"{int(time_diff.total_seconds())} seconds ago"
+                elif time_diff.total_seconds() < 3600:
+                    minutes = int(time_diff.total_seconds() / 60)
+                    self._attr_native_value = f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+                elif time_diff.total_seconds() < 86400:
+                    hours = int(time_diff.total_seconds() / 3600)
+                    self._attr_native_value = f"{hours} hour{'s' if hours != 1 else ''} ago"
+                else:
+                    days = int(time_diff.total_seconds() / 86400)
+                    self._attr_native_value = f"{days} day{'s' if days != 1 else ''} ago"
+                
+                self._attr_available = True
+            except (ValueError, AttributeError) as e:
+                _LOGGER.debug("Error formatting last_toggled time: %s", e)
+                self._attr_native_value = "Unknown"
+                self._attr_available = True
+        else:
+            self._attr_native_value = "Never toggled"
+            self._attr_available = True
+
+    async def async_update(self) -> None:
+        """Update sensor state."""
         await self.coordinator.async_request_refresh()

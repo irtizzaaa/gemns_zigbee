@@ -1,6 +1,7 @@
 """BLE switch platform for Gemns™ IoT integration."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
@@ -42,18 +43,30 @@ async def async_setup_entry(
     device_type = config_entry.data.get("device_type", "unknown")
     device_type_str = config_entry.data.get("device_name", "unknown")
     
-    should_create_switch = (
-        device_type in [1, 3, 6, 7, 8, 9] or
-        device_type_str in ["on_off_switch", "two_way_switch", "light_switch", "door_switch", "toggle_switch"] or
-        "switch" in device_type_str.lower()
+    is_toggle_switch = (
+        device_type == 9 or
+        device_type_str in ["toggle_switch"] or
+        "toggle_switch" in device_type_str.lower()
     )
     
-    if should_create_switch:
-        switch_entity = GemnsBLESwitch(coordinator, config_entry)
-        entities.append(switch_entity)
-        _LOGGER.info("Created switch entity for device type: %s (type: %s)", device_type_str, device_type)
+    if is_toggle_switch:
+        from .ble_sensor import GemnsBLEToggleLastToggledSensor
+        toggle_sensor = GemnsBLEToggleLastToggledSensor(coordinator, config_entry)
+        entities.append(toggle_sensor)
+        _LOGGER.info("Created toggle switch sensor for device type: %s", device_type_str)
     else:
-        _LOGGER.info("Skipping switch entity creation for device type: %s (type: %s)", device_type_str, device_type)
+        should_create_switch = (
+            device_type in [1, 3, 6, 7, 8] or
+            device_type_str in ["on_off_switch", "two_way_switch", "light_switch", "door_switch"] or
+            ("switch" in device_type_str.lower() and "toggle" not in device_type_str.lower())
+        )
+        
+        if should_create_switch:
+            switch_entity = GemnsBLESwitch(coordinator, config_entry)
+            entities.append(switch_entity)
+            _LOGGER.info("Created switch entity (with on/off state) for device type: %s (type: %s)", device_type_str, device_type)
+        else:
+            _LOGGER.info("Skipping switch entity creation for device type: %s (type: %s)", device_type_str, device_type)
 
     if entities:
         async_add_entities(entities)
@@ -86,6 +99,7 @@ class GemnsBLESwitch(SwitchEntity):
         self._attr_is_on = None
         self._attr_available = False
         self._device_type = "unknown"
+        self._last_toggled = None
 
     @property
     def address(self) -> str:
@@ -110,6 +124,7 @@ class GemnsBLESwitch(SwitchEntity):
             "ble_active": False,
             "ble_connected": False,
             "ble_status": "inactive",
+            "last_toggled": self._last_toggled,
         }
 
         if self.coordinator.data:
@@ -133,6 +148,26 @@ class GemnsBLESwitch(SwitchEntity):
                 if "sensor_event" in sensor_data:
                     attrs["sensor_event"] = sensor_data["sensor_event"]
 
+        if "toggle" in self._device_type.lower() and self._last_toggled:
+            try:
+                toggled_dt = datetime.fromisoformat(self._last_toggled.replace('Z', '+00:00'))
+                now = datetime.now(toggled_dt.tzinfo) if toggled_dt.tzinfo else datetime.now()
+                time_diff = now - toggled_dt.replace(tzinfo=None) if not toggled_dt.tzinfo else now - toggled_dt
+                
+                if time_diff.total_seconds() < 60:
+                    attrs["last_toggled_formatted"] = f"{int(time_diff.total_seconds())} seconds ago"
+                elif time_diff.total_seconds() < 3600:
+                    attrs["last_toggled_formatted"] = f"{int(time_diff.total_seconds() / 60)} minutes ago"
+                elif time_diff.total_seconds() < 86400:
+                    attrs["last_toggled_formatted"] = f"{int(time_diff.total_seconds() / 3600)} hours ago"
+                else:
+                    attrs["last_toggled_formatted"] = f"{int(time_diff.total_seconds() / 86400)} days ago"
+                
+                attrs["last_toggled_datetime"] = toggled_dt.strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, AttributeError) as e:
+                _LOGGER.debug("Error formatting last_toggled time: %s", e)
+                attrs["last_toggled_formatted"] = self._last_toggled
+
         return attrs
 
     async def async_added_to_hass(self) -> None:
@@ -148,8 +183,9 @@ class GemnsBLESwitch(SwitchEntity):
             self._update_from_coordinator()
 
             if previous_state != self._attr_is_on:
-                _LOGGER.info("SWITCH STATE CHANGED: %s | Previous: %s | New: %s",
-                           self.address, previous_state, self._attr_is_on)
+                self._last_toggled = datetime.now().isoformat()
+                _LOGGER.info("SWITCH STATE CHANGED: %s | Previous: %s | New: %s | Last toggled: %s",
+                           self.address, previous_state, self._attr_is_on, self._last_toggled)
 
             self.async_write_ha_state()
         except (ValueError, KeyError, AttributeError, TypeError) as e:

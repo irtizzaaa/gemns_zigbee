@@ -51,7 +51,7 @@ BLE_DISCOVERY_MODE_V1_AUTO: Final = "v1_auto"
 
 # Integration name and version
 INTEGRATION_NAME: Final = "Gemns™ IoT"
-INTEGRATION_VERSION: Final = "1.0.5"
+INTEGRATION_VERSION: Final = "1.0.6"
 
 # BLE Packet Format Constants
 BLE_COMPANY_ID: Final = 0x0F9C  # Gemns™ IoT company ID

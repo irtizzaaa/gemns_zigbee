@@ -235,8 +235,8 @@ class GemnsBLESwitch(SwitchEntity):
             self._attr_icon = "mdi:toggle-switch"
 
         elif "two_way" in device_type or "two-way" in device_type:
-            self._attr_name = f"Gemns™ IoT Two-Way Switch {self._get_professional_device_id()}"
-            self._attr_icon = "mdi:toggle-switch"
+            self._attr_name = f"Gemns™ IoT Door Sensor {self._get_professional_device_id()}"
+            self._attr_icon = "mdi:door"
 
         elif "switch" in device_type:
             self._attr_name = f"Gemns™ IoT On/Off Switch {self._get_professional_device_id()}"
@@ -254,7 +254,7 @@ class GemnsBLESwitch(SwitchEntity):
             "leak_sensor": "Leak Sensor",
             "button": "Button",
             "vibration_sensor": "Vibration Monitor",
-            "two_way_switch": "Two Way Switch",
+            "two_way_switch": "Door Sensor",
             "on_off_switch": "On/Off Switch",
             "light_switch": "Light Switch",
             "door_switch": "Door Switch",

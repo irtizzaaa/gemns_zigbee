@@ -231,7 +231,7 @@ class GemnsBLESensor(SensorEntity):
         elif "pressure" in device_type:
             self._attr_device_class = SensorDeviceClass.PRESSURE
             self._attr_native_unit_of_measurement = UnitOfPressure.HPA
-            self._attr_name = f"Gemns™ IoT Two Way Switch {self._get_professional_device_id()}"
+            self._attr_name = f"Gemns™ IoT Door Sensor {self._get_professional_device_id()}"
             self._attr_icon = "mdi:gauge"
 
         elif "vibration" in device_type:
@@ -253,7 +253,7 @@ class GemnsBLESensor(SensorEntity):
             "leak_sensor": "Leak Sensor",
             "button": "Button",
             "vibration_sensor": "Vibration Monitor",
-            "two_way_switch": "Two Way Switch",
+            "two_way_switch": "Door Sensor",
             "on_off_switch": "On/Off Switch",
             "light_switch": "Light Switch",
             "door_switch": "Door Switch",

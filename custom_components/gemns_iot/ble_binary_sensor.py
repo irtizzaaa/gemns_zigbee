@@ -231,9 +231,9 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             self._attr_icon = "mdi:vibrate"
 
         elif device_type == "two_way_switch":
-            self._attr_device_class = BinarySensorDeviceClass.OPENING
-            self._attr_name = f"Gemns™ IoT Two-Way Switch {self._get_professional_device_id()}"
-            self._attr_icon = "mdi:toggle-switch"
+            self._attr_device_class = BinarySensorDeviceClass.DOOR
+            self._attr_name = f"Gemns™ IoT Door Sensor {self._get_professional_device_id()}"
+            self._attr_icon = "mdi:door"
 
         elif device_type in ["button", "legacy"]:
             self._attr_device_class = BinarySensorDeviceClass.PROBLEM
@@ -257,7 +257,7 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             "push_button": "Batteryless Push Button",
             "on_off_switch": "Batteryless On/Off Switch",
             "door_sensor": "Batteryless Door Sensor",
-            "two_way_switch": "Batteryless Two-Way Switch",
+            "two_way_switch": "Batteryless Door Sensor",
             "leak_sensor": "Batteryless Leak Sensor",
             "vibration_sensor": "Batteryless Vibration Monitor",
             "legacy": "Batteryless Legacy Device",
@@ -272,7 +272,7 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             "leak_sensor": "Kitchen",
             "vibration_sensor": "Garage",
             "button": "Living Room",
-            "two_way_switch": "Bedroom",
+            "two_way_switch": "Kitchen",
             "legacy": "Office"
         }
         suggested_area = area_map.get(device_type, "Home")

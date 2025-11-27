@@ -30,7 +30,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_DEVICE_TYPE, default=4): vol.In({
             "1": "Button",
             "2": "Vibration Monitor",
-            "3": "Two Way Switch",
+            "3": "Door Sensor",
             "4": "Leak Sensor"
         }),
     }
@@ -43,7 +43,7 @@ STEP_DISCOVERY_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_DEVICE_TYPE, default=4): vol.In({
             "1": "Button",
             "2": "Vibration Monitor",
-            "3": "Two Way Switch",
+            "3": "Door Sensor",
             "4": "Leak Sensor"
         }),
     }
@@ -106,7 +106,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=STEP_USER_DATA_SCHEMA,
             description_placeholders={
-                "message": "Manually provision a Gemns™ IoT device by entering its MAC address and decryption key.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Two Way Switch\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
+                "message": "Manually provision a Gemns™ IoT device by entering its MAC address and decryption key.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
                 "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
             }
         )
@@ -202,7 +202,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             descriptions = {
                 "leak_sensor": "Configure your Gemns™ IoT Leak Sensor. This device detects water leaks and moisture.",
                 "vibration_sensor": "Configure your Gemns™ IoT Vibration Monitor. This device detects vibrations and movement.",
-                "two_way_switch": "Configure your Gemns™ IoT Two-Way Switch. This device can be turned on/off remotely.",
+                "two_way_switch": "Configure your Gemns™ IoT Door Sensor. This device detects when a door is opened or closed.",
                 "button": "Configure your Gemns™ IoT Button. This device sends signals when pressed.",
                 "legacy": "Configure your Gemns™ IoT Legacy Device. This device provides basic IoT functionality.",
                 "unknown": "Configure your Gemns™ IoT Device. This device provides IoT functionality."
@@ -282,7 +282,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                                     0: ("legacy", "Legacy Device"),
                                     1: ("button", "Button"),
                                     2: ("vibration_sensor", "Vibration Monitor"),
-                                    3: ("two_way_switch", "Two-Way Switch"),
+                                    3: ("two_way_switch", "Door Sensor"),
                                     4: ("leak_sensor", "Leak Sensor"),
                                 }
 
@@ -306,7 +306,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                 if "Vibration" in device_name or "vibration" in device_name:
                     return "vibration_sensor", "Gemns™ IoT Vibration Monitor"
                 if "Switch" in device_name or "switch" in device_name:
-                    return "two_way_switch", "Gemns™ IoT Two-Way Switch"
+                    return "two_way_switch", "Gemns™ IoT Door Sensor"
                 if "Button" in device_name or "button" in device_name:
                     return "button", "Gemns™ IoT Button"
                 # Default fallback

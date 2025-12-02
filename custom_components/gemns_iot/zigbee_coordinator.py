@@ -70,7 +70,7 @@ class ZigbeeCommandParser:
         length = int(match.group(3))
         type_code = int(match.group(4))
         device_id = match.group(5) if match.group(5) else None
-        hue = match.group(6) if match.group(6) else None
+        brightness = match.group(6) if match.group(6) else None
         
         result = {
             "command": command,
@@ -82,14 +82,14 @@ class ZigbeeCommandParser:
         if device_id:
             result["device_id"] = int(device_id)
         
-        if hue:
-            result["hue"] = int(hue)
+        if brightness:
+            result["brightness"] = int(brightness)
         
         return result
 
     @staticmethod
     def build_command(command: str, device_type: str, device_id: int | None = None, 
-                     state: bool | None = None, hue: int | None = None) -> str:
+                     state: bool | None = None, brightness: int | None = None) -> str:
         """Build a Zigbee command string."""
         if command == ZIGBEE_CMD_PAIR:
             return f"{ZIGBEE_CMD_PREFIX}+{command}{SERIAL_LINE_ENDING}"
@@ -106,10 +106,11 @@ class ZigbeeCommandParser:
         
         elif command == ZIGBEE_CMD_STATE:
             if device_type == ZIGBEE_DEVICE_BULB:
-                if hue is not None:
+                if brightness is not None:
+                    brightness = max(0, min(255, int(brightness)))
                     length = 3
                     type_code = 2
-                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {hue}{SERIAL_LINE_ENDING}"
+                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {brightness}{SERIAL_LINE_ENDING}"
                 else:
                     length = 2
                     type_code = 2
@@ -275,7 +276,7 @@ class ZigbeeCoordinator:
         """Handle state update from device."""
         device_id = parsed.get("device_id")
         device_type = parsed.get("device_type")
-        hue = parsed.get("hue")
+        brightness = parsed.get("brightness")
         
         if device_id is None:
             _LOGGER.warning("State update missing device_id")
@@ -287,8 +288,9 @@ class ZigbeeCoordinator:
             return
         
         if device_type == ZIGBEE_DEVICE_BULB:
-            if hue is not None:
-                device_data["properties"]["hue"] = hue
+            if brightness is not None:
+                brightness = max(0, min(255, int(brightness)))
+                device_data["properties"]["brightness"] = brightness
                 device_data["properties"]["light_state"] = True
             else:
                 device_data["properties"]["light_state"] = True
@@ -311,18 +313,18 @@ class ZigbeeCoordinator:
         await self._write_serial(command)
         _LOGGER.info("Sent pairing command")
 
-    async def send_control_command(self, device_id: int, device_type: str, state: bool, hue: int | None = None):
+    async def send_control_command(self, device_id: int, device_type: str, state: bool, brightness: int | None = None):
         """Send control command to device."""
         command = self.parser.build_command(
             ZIGBEE_CMD_STATE,
             device_type,
             device_id=device_id,
             state=state,
-            hue=hue
+            brightness=brightness
         )
         await self._write_serial(command)
-        _LOGGER.info("Sent control command: device_id=%d, type=%s, state=%s, hue=%s", 
-                    device_id, device_type, state, hue)
+        _LOGGER.info("Sent control command: device_id=%d, type=%s, state=%s, brightness=%s", 
+                    device_id, device_type, state, brightness)
 
     async def _write_serial(self, data: str):
         """Write data to serial port."""

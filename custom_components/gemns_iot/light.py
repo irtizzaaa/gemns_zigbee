@@ -181,19 +181,23 @@ class GemnsLight(LightEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    # Calculate hue from RGB if provided
-                    hue = None
-                    if ATTR_RGB_COLOR in kwargs:
+                    brightness = None
+                    if ATTR_BRIGHTNESS in kwargs:
+                        brightness = kwargs[ATTR_BRIGHTNESS]
+                        self._attr_brightness = brightness
+                    elif ATTR_RGB_COLOR in kwargs:
                         rgb_color = kwargs[ATTR_RGB_COLOR]
                         self._attr_rgb_color = rgb_color
                         self._attr_color_mode = ColorMode.RGB
-                        # Convert RGB to hue (simplified - you might want a better conversion)
-                        # For now, use a simple approximation
-                        hue = int((rgb_color[0] + rgb_color[1] + rgb_color[2]) / 3 * 65535 / 765)
+                        brightness = int((rgb_color[0] + rgb_color[1] + rgb_color[2]) / 3)
+                    else:
+                        brightness = self._attr_brightness
                     
-                    # Send Zigbee serial command
+                    if brightness is not None:
+                        brightness = max(0, min(255, int(brightness)))
+                    
                     await zigbee_coordinator.send_control_command(
-                        zigbee_id, ZIGBEE_DEVICE_BULB, True, hue
+                        zigbee_id, ZIGBEE_DEVICE_BULB, True, brightness
                     )
                 else:
                     _LOGGER.error("Zigbee coordinator not available")

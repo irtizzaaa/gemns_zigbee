@@ -14,7 +14,7 @@ Examples:
     python test_zigbee_serial.py COM3 del bulb
     python test_zigbee_serial.py COM3 state bulb 1 on
     python test_zigbee_serial.py COM3 state switch 0 on
-    python test_zigbee_serial.py COM3 state bulb 1 hue 32768
+    python test_zigbee_serial.py COM3 state bulb 1 brightness 128
 """
 
 import argparse
@@ -47,7 +47,7 @@ def list_serial_ports():
     return [port.device for port in ports]
 
 
-def build_command(command, device_type=None, device_id=None, state=None, hue=None):
+def build_command(command, device_type=None, device_id=None, state=None, brightness=None):
     """Build a Zigbee command string."""
     if command == CMD_PAIR:
         return f"{CMD_PREFIX}+{command}{LINE_ENDING}"
@@ -57,14 +57,14 @@ def build_command(command, device_type=None, device_id=None, state=None, hue=Non
             raise ValueError(f"Invalid device type: {device_type}")
         if device_id is None:
             raise ValueError("device_id required for add command")
-        length = 2  # type + id
+        length = 2
         type_code = 2 if device_type == DEVICE_BULB else 3
         return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id}{LINE_ENDING}"
     
     if command == CMD_DEL:
         if device_type not in [DEVICE_BULB, DEVICE_SWITCH]:
             raise ValueError(f"Invalid device type: {device_type}")
-        length = 1  # type only
+        length = 1
         type_code = 2 if device_type == DEVICE_BULB else 3
         return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code}{LINE_ENDING}"
     
@@ -75,17 +75,18 @@ def build_command(command, device_type=None, device_id=None, state=None, hue=Non
             raise ValueError("device_id required for state command")
         
         if device_type == DEVICE_BULB:
-            if hue is not None:
-                length = 3  # type + id + hue
+            if brightness is not None:
+                brightness = max(0, min(255, int(brightness)))
+                length = 3
                 type_code = 2
-                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {hue}{LINE_ENDING}"
+                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {brightness}{LINE_ENDING}"
             else:
-                length = 2  # type + id
+                length = 2
                 type_code = 2
                 state_val = 1 if state else 0
                 return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
-        else:  # switch
-            length = 2  # type + id
+        else:
+            length = 2
             type_code = 3
             state_val = 1 if state else 0
             return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
@@ -189,9 +190,9 @@ def main():
             device_id = int(args.args[1])
             state_arg = args.args[2].lower()
             
-            if state_arg == "hue" and len(args.args) >= 4:
-                hue = int(args.args[3])
-                cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, hue=hue)
+            if state_arg == "brightness" and len(args.args) >= 4:
+                brightness = int(args.args[3])
+                cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, brightness=brightness)
             else:
                 state = state_arg in ["on", "1", "true"]
                 cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, state=state)

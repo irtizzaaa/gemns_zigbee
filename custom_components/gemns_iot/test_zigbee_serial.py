@@ -2,19 +2,13 @@
 """
 Test script for Zigbee serial commands.
 
-- $AT+add bulb 2 2 1
-- $AT+del bulb 1 2
-- $AT+state bulb 2 2 1
-- $AT+state switch 3 3 0 4
-- $AT+pair
-
 Examples:
     python test_zigbee_serial.py COM3 pair
     python test_zigbee_serial.py COM3 add bulb 1
     python test_zigbee_serial.py COM3 del bulb
-    python test_zigbee_serial.py COM3 state bulb 1 on
+    python test_zigbee_serial.py COM3 state bulb 55424 on
     python test_zigbee_serial.py COM3 state switch 0 on
-    python test_zigbee_serial.py COM3 state bulb 1 brightness 128
+    python test_zigbee_serial.py COM3 state bulb 55424 brightness 128
 """
 
 import argparse
@@ -74,22 +68,19 @@ def build_command(command, device_type=None, device_id=None, state=None, brightn
         if device_id is None:
             raise ValueError("device_id required for state command")
         
-        if device_type == DEVICE_BULB:
-            if brightness is not None:
-                brightness = max(0, min(255, int(brightness)))
-                length = 3
-                type_code = 2
-                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {brightness}{LINE_ENDING}"
-            else:
-                length = 2
-                type_code = 2
-                state_val = 1 if state else 0
-                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
+        device_type_code = 0 if device_type == DEVICE_BULB else 1
+        device_type_name = "sw" if device_type == DEVICE_SWITCH else device_type
+        src_id = int(device_id) & 0xFFFFFFFF
+        
+        if brightness is not None:
+            brightness = max(0, min(255, int(brightness)))
+            length = 4
+            cmd_type = 3
+            return f"{CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type} {brightness}{LINE_ENDING}"
         else:
-            length = 2
-            type_code = 3
-            state_val = 1 if state else 0
-            return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
+            length = 3
+            cmd_type = 1 if state else 0
+            return f"{CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type}{LINE_ENDING}"
     
     raise ValueError(f"Unknown command: {command}")
 

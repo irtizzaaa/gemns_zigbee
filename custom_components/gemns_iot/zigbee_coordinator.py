@@ -58,8 +58,38 @@ class ZigbeeCommandParser:
             return None
         
         line = line[len(ZIGBEE_CMD_PREFIX):].strip()
-        pattern = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s*(\d*)\s*(\d*)'
-        match = re.match(pattern, line)
+        
+        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
+        match = re.match(pattern_new, line)
+        
+        if match and match.group(1) == ZIGBEE_CMD_STATE:
+            command = match.group(1)
+            device_type = match.group(2)
+            length = int(match.group(3))
+            src_id = int(match.group(4)) & 0xFFFFFFFF
+            device_type_code = int(match.group(5))
+            cmd_type = int(match.group(6))
+            brightness = match.group(7) if match.group(7) else None
+            
+            if device_type == "sw":
+                device_type = ZIGBEE_DEVICE_SWITCH
+            
+            result = {
+                "command": command,
+                "device_type": device_type,
+                "length": length,
+                "type": device_type_code,
+                "device_id": src_id,
+                "cmd_type": cmd_type,
+            }
+            
+            if brightness:
+                result["brightness"] = max(0, min(255, int(brightness)))
+            
+            return result
+        
+        pattern_old = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s*(\d*)\s*(\d*)'
+        match = re.match(pattern_old, line)
         
         if not match:
             _LOGGER.warning("Failed to parse Zigbee command: %s", line)
@@ -83,7 +113,7 @@ class ZigbeeCommandParser:
             result["device_id"] = int(device_id)
         
         if brightness:
-            result["brightness"] = int(brightness)
+            result["brightness"] = max(0, min(255, int(brightness)))
         
         return result
 
@@ -105,22 +135,19 @@ class ZigbeeCommandParser:
             return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code}{SERIAL_LINE_ENDING}"
         
         elif command == ZIGBEE_CMD_STATE:
-            if device_type == ZIGBEE_DEVICE_BULB:
-                if brightness is not None:
-                    brightness = max(0, min(255, int(brightness)))
-                    length = 3
-                    type_code = 2
-                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {brightness}{SERIAL_LINE_ENDING}"
-                else:
-                    length = 2
-                    type_code = 2
-                    state_val = 1 if state else 0
-                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{SERIAL_LINE_ENDING}"
+            device_type_code = 0 if device_type == ZIGBEE_DEVICE_BULB else 1
+            device_type_name = "sw" if device_type == ZIGBEE_DEVICE_SWITCH else device_type
+            src_id = int(device_id) & 0xFFFFFFFF
+            
+            if brightness is not None:
+                brightness = max(0, min(255, int(brightness)))
+                length = 4
+                cmd_type = 3
+                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type} {brightness}{SERIAL_LINE_ENDING}"
             else:
                 length = 3
-                type_code = 3
-                state_val = 1 if state else 0
-                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{SERIAL_LINE_ENDING}"
+                cmd_type = 1 if state else 0
+                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type}{SERIAL_LINE_ENDING}"
         
         return ""
 

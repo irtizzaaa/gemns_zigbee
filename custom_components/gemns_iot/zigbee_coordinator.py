@@ -135,19 +135,21 @@ class ZigbeeCommandParser:
             return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code}{SERIAL_LINE_ENDING}"
         
         elif command == ZIGBEE_CMD_STATE:
-            device_type_code = 0 if device_type == ZIGBEE_DEVICE_BULB else 1
-            device_type_name = "sw" if device_type == ZIGBEE_DEVICE_SWITCH else device_type
-            src_id = int(device_id) & 0xFFFFFFFF
-            
-            if brightness is not None:
-                brightness = max(0, min(255, int(brightness)))
-                length = 4
-                cmd_type = 3
-                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type} {brightness}{SERIAL_LINE_ENDING}"
+            if device_type == ZIGBEE_DEVICE_BULB:
+                if brightness is not None:
+                    length = 3
+                    type_code = 2
+                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {brightness}{SERIAL_LINE_ENDING}"
+                else:
+                    length = 2
+                    type_code = 2
+                    state_val = 1 if state else 0
+                    return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{SERIAL_LINE_ENDING}"
             else:
-                length = 3
-                cmd_type = 1 if state else 0
-                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type}{SERIAL_LINE_ENDING}"
+                length = 2
+                type_code = 3
+                state_val = 1 if state else 0
+                return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{SERIAL_LINE_ENDING}"
         
         return ""
 

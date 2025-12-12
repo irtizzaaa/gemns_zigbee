@@ -2,13 +2,19 @@
 """
 Test script for Zigbee serial commands.
 
+- $AT+add bulb 2 2 1
+- $AT+del bulb 1 2
+- $AT+state bulb 2 2 1
+- $AT+state switch 3 3 0 4
+- $AT+pair
+
 Examples:
     python test_zigbee_serial.py COM3 pair
     python test_zigbee_serial.py COM3 add bulb 1
     python test_zigbee_serial.py COM3 del bulb
-    python test_zigbee_serial.py COM3 state bulb 55424 on
+    python test_zigbee_serial.py COM3 state bulb 1 on
     python test_zigbee_serial.py COM3 state switch 0 on
-    python test_zigbee_serial.py COM3 state bulb 55424 brightness 128
+    python test_zigbee_serial.py COM3 state bulb 1 hue 32768
 """
 
 import argparse
@@ -41,7 +47,7 @@ def list_serial_ports():
     return [port.device for port in ports]
 
 
-def build_command(command, device_type=None, device_id=None, state=None, brightness=None):
+def build_command(command, device_type=None, device_id=None, state=None, hue=None):
     """Build a Zigbee command string."""
     if command == CMD_PAIR:
         return f"{CMD_PREFIX}+{command}{LINE_ENDING}"
@@ -51,14 +57,14 @@ def build_command(command, device_type=None, device_id=None, state=None, brightn
             raise ValueError(f"Invalid device type: {device_type}")
         if device_id is None:
             raise ValueError("device_id required for add command")
-        length = 2
+        length = 2  # type + id
         type_code = 2 if device_type == DEVICE_BULB else 3
         return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id}{LINE_ENDING}"
     
     if command == CMD_DEL:
         if device_type not in [DEVICE_BULB, DEVICE_SWITCH]:
             raise ValueError(f"Invalid device type: {device_type}")
-        length = 1
+        length = 1  # type only
         type_code = 2 if device_type == DEVICE_BULB else 3
         return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code}{LINE_ENDING}"
     
@@ -68,19 +74,21 @@ def build_command(command, device_type=None, device_id=None, state=None, brightn
         if device_id is None:
             raise ValueError("device_id required for state command")
         
-        device_type_code = 0 if device_type == DEVICE_BULB else 1
-        device_type_name = "sw" if device_type == DEVICE_SWITCH else device_type
-        src_id = int(device_id) & 0xFFFFFFFF
-        
-        if brightness is not None:
-            brightness = max(0, min(255, int(brightness)))
-            length = 4
-            cmd_type = 3
-            return f"{CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type} {brightness}{LINE_ENDING}"
-        else:
-            length = 3
-            cmd_type = 1 if state else 0
-            return f"{CMD_PREFIX}+{command} {device_type_name} {length} {src_id} {device_type_code} {cmd_type}{LINE_ENDING}"
+        if device_type == DEVICE_BULB:
+            if hue is not None:
+                length = 3  # type + id + hue
+                type_code = 2
+                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {hue}{LINE_ENDING}"
+            else:
+                length = 2  # type + id
+                type_code = 2
+                state_val = 1 if state else 0
+                return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
+        else:  # switch
+            length = 2  # type + id
+            type_code = 3
+            state_val = 1 if state else 0
+            return f"{CMD_PREFIX}+{command} {device_type} {length} {type_code} {device_id} {state_val}{LINE_ENDING}"
     
     raise ValueError(f"Unknown command: {command}")
 
@@ -181,9 +189,9 @@ def main():
             device_id = int(args.args[1])
             state_arg = args.args[2].lower()
             
-            if state_arg == "brightness" and len(args.args) >= 4:
-                brightness = int(args.args[3])
-                cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, brightness=brightness)
+            if state_arg == "hue" and len(args.args) >= 4:
+                hue = int(args.args[3])
+                cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, hue=hue)
             else:
                 state = state_arg in ["on", "1", "true"]
                 cmd_str = build_command(CMD_STATE, device_type=device_type, device_id=device_id, state=state)

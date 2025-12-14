@@ -42,12 +42,23 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        # MQTT option temporarily disabled - firmware not developed yet
-        # To re-enable MQTT: uncomment the integration_type selection below
-        # and restore the conditional logic in the rest of this method
-
-        # Force BLE manual provisioning for now
-        return await self.async_step_ble()
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema({
+                    vol.Required("integration_type"): vol.In({
+                        "ble": "Bluetooth Low Energy (BLE)",
+                        "zigbee": "Zigbee"
+                    }),
+                }),
+            )
+        
+        integration_type = user_input["integration_type"]
+        
+        if integration_type == "ble":
+            return await self.async_step_ble()
+        else:
+            return await self.async_step_zigbee()
 
         # MQTT OPTION (COMMENTED OUT - TO RE-ENABLE WHEN FIRMWARE IS READY):
         # if user_input is None:
@@ -138,6 +149,35 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def async_step_zigbee(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Handle Zigbee configuration step."""
+        if user_input is not None:
+            enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
+            serial_port = user_input.get(CONF_SERIAL_PORT, "").strip() or None
+            
+            unique_id = f"gemns_zigbee_{serial_port or 'auto'}"
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
+            
+            return self.async_create_entry(
+                title="Gemns™ IoT (Zigbee)",
+                data={
+                    CONF_ENABLE_ZIGBEE: enable_zigbee,
+                    CONF_SERIAL_PORT: serial_port,
+                },
+            )
+        
+        return self.async_show_form(
+            step_id="zigbee",
+            data_schema=vol.Schema({
+                vol.Optional(CONF_ENABLE_ZIGBEE, default=DEFAULT_ENABLE_ZIGBEE): bool,
+                vol.Optional(CONF_SERIAL_PORT, default=""): str,
+            }),
+            description_placeholders={
+                "message": "Zigbee Configuration\n\nConfigure your Zigbee coordinator settings.\n\n• Enable Zigbee: Check to enable Zigbee coordinator\n• Serial Port: Leave empty for auto-detection, or manually specify (e.g., /dev/ttyUSB0, COM3)",
+            }
+        )
+
     async def async_step_ble(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle BLE configuration step - automatic MAC population from beacon."""
         if user_input is not None:
@@ -149,8 +189,6 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 bytes.fromhex(decryption_key)
                 if len(decryption_key) != 32:  # 16 bytes = 32 hex chars
-                    enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
-                    serial_port = user_input.get(CONF_SERIAL_PORT, "").strip()
                     return self.async_show_form(
                         step_id="ble",
                         data_schema=vol.Schema({
@@ -162,14 +200,10 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "3": "Door Sensor",
                                 "4": "Leak Sensor"
                             }),
-                            vol.Optional(CONF_ENABLE_ZIGBEE, default=enable_zigbee): bool,
-                            vol.Optional(CONF_SERIAL_PORT, default=serial_port): str,
                         }),
                         errors={"base": "invalid_decryption_key_length"},
                     )
             except ValueError:
-                enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
-                serial_port = user_input.get(CONF_SERIAL_PORT, "").strip()
                 return self.async_show_form(
                     step_id="ble",
                     data_schema=vol.Schema({
@@ -181,8 +215,6 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             "3": "Door Sensor",
                             "4": "Leak Sensor"
                         }),
-                        vol.Optional(CONF_ENABLE_ZIGBEE, default=enable_zigbee): bool,
-                        vol.Optional(CONF_SERIAL_PORT, default=serial_port): str,
                     }),
                     errors={"base": "invalid_decryption_key_format"},
                 )
@@ -197,10 +229,6 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
 
-            # Get Zigbee settings
-            enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
-            serial_port = user_input.get(CONF_SERIAL_PORT, "").strip() or None
-            
             # Create the config entry
             return self.async_create_entry(
                 title=device_name,
@@ -210,8 +238,8 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DECRYPTION_KEY: decryption_key,
                     CONF_DEVICE_NAME: device_name,
                     CONF_DEVICE_TYPE: device_type,
-                    CONF_ENABLE_ZIGBEE: enable_zigbee,
-                    CONF_SERIAL_PORT: serial_port,
+                    CONF_ENABLE_ZIGBEE: False,  # BLE mode, Zigbee disabled
+                    CONF_SERIAL_PORT: None,
                 },
             )
 
@@ -226,11 +254,9 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "3": "Door Sensor",
                     "4": "Leak Sensor"
                 }),
-                vol.Optional(CONF_ENABLE_ZIGBEE, default=DEFAULT_ENABLE_ZIGBEE): bool,
-                vol.Optional(CONF_SERIAL_PORT, default=""): str,
             }),
             description_placeholders={
-                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)\n\nZigbee Settings:\n• Enable Zigbee: Check to enable Zigbee coordinator (auto-detects serial port)\n• Serial Port: Leave empty for auto-detection, or manually specify (e.g., /dev/ttyUSB0, COM3)",
+                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
                 "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
             }
         )

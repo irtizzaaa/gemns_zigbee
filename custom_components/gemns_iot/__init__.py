@@ -32,6 +32,8 @@ BLE_PLATFORMS: list[Platform] = [
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Gemns™ IoT from a config entry."""
+    _LOGGER.info("Setting up Gemns™ IoT integration (entry_id: %s)", entry.entry_id)
+    _LOGGER.info("Config entry data: %s", entry.data)
     hass.data.setdefault(DOMAIN, {})
     
     # Register static path for integration assets
@@ -82,20 +84,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initialize Zigbee coordinator if enabled
     zigbee_coordinator = None
     enable_zigbee = entry.data.get(CONF_ENABLE_ZIGBEE, True)
-    _LOGGER.debug("Zigbee enabled: %s", enable_zigbee)
+    _LOGGER.info("Zigbee enabled: %s", enable_zigbee)
     
     if enable_zigbee:
         serial_port = entry.data.get(CONF_SERIAL_PORT)
-        _LOGGER.debug("Zigbee serial port from config: %s", serial_port if serial_port else "None (will auto-detect)")
+        _LOGGER.info("Initializing Zigbee coordinator...")
+        _LOGGER.info("Zigbee serial port from config: %s", serial_port if serial_port else "None (will auto-detect)")
         zigbee_coordinator = ZigbeeCoordinator(hass, device_manager, serial_port)
-        _LOGGER.debug("ZigbeeCoordinator instance created, attempting to start...")
+        _LOGGER.info("ZigbeeCoordinator instance created, attempting to start...")
         if await zigbee_coordinator.async_start():
             _LOGGER.info("Zigbee coordinator started successfully")
         else:
             _LOGGER.warning("Failed to start Zigbee coordinator")
             zigbee_coordinator = None
     else:
-        _LOGGER.debug("Zigbee is disabled in configuration")
+        _LOGGER.info("Zigbee is disabled in configuration - skipping Zigbee coordinator initialization")
 
     # Store device manager and coordinator in hass data
     hass.data[DOMAIN][entry.entry_id] = {

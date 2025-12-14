@@ -186,25 +186,25 @@ class ZigbeeCoordinator:
 
     async def async_start(self):
         """Start the Zigbee coordinator."""
-        _LOGGER.debug("Starting Zigbee coordinator...")
+        _LOGGER.info("Starting Zigbee coordinator...")
         
         if not SERIAL_AVAILABLE:
             _LOGGER.error("pyserial not available, cannot start Zigbee coordinator")
             return False
         
-        _LOGGER.debug("pyserial is available")
+        _LOGGER.info("pyserial is available")
         
         if not self.serial_port:
-            _LOGGER.debug("No serial port specified, attempting auto-detection...")
+            _LOGGER.info("No serial port specified, attempting auto-detection...")
             self.serial_port = await self._find_serial_port()
         else:
-            _LOGGER.debug("Using configured serial port: %s", self.serial_port)
+            _LOGGER.info("Using configured serial port: %s", self.serial_port)
         
         if not self.serial_port:
-            _LOGGER.error("No Zigbee serial port found")
+            _LOGGER.error("No Zigbee serial port found - please check your USB connection and try specifying the port manually")
             return False
         
-        _LOGGER.debug("Attempting to connect to serial port: %s (baudrate: %d)", 
+        _LOGGER.info("Attempting to connect to serial port: %s (baudrate: %d)", 
                       self.serial_port, SERIAL_BAUDRATE)
         
         try:
@@ -215,16 +215,16 @@ class ZigbeeCoordinator:
                 write_timeout=SERIAL_TIMEOUT
             )
             _LOGGER.info("Connected to Zigbee dongle on %s", self.serial_port)
-            _LOGGER.debug("Serial connection details: port=%s, baudrate=%d, timeout=%s, is_open=%s",
+            _LOGGER.info("Serial connection details: port=%s, baudrate=%d, timeout=%s, is_open=%s",
                          self.serial_port, SERIAL_BAUDRATE, SERIAL_TIMEOUT, self.serial_connection.is_open)
         except Exception as e:
             _LOGGER.error("Failed to open serial port %s: %s", self.serial_port, e)
-            _LOGGER.debug("Exception details: %s", type(e).__name__, exc_info=True)
+            _LOGGER.error("Exception details: %s", type(e).__name__, exc_info=True)
             return False
         
         self._running = True
         self._read_task = asyncio.create_task(self._read_serial_loop())
-        _LOGGER.debug("Zigbee coordinator started successfully, read loop task created")
+        _LOGGER.info("Zigbee coordinator started successfully, read loop task created")
         
         return True
 
@@ -245,19 +245,23 @@ class ZigbeeCoordinator:
 
     async def _find_serial_port(self) -> str | None:
         """Find the Zigbee serial port."""
-        _LOGGER.debug("Scanning for available serial ports...")
+        _LOGGER.info("Scanning for available serial ports...")
         try:
             ports = serial.tools.list_ports.comports()
-            _LOGGER.debug("Found %d serial port(s) total", len(ports))
+            _LOGGER.info("Found %d serial port(s) total", len(ports))
+            
+            if len(ports) == 0:
+                _LOGGER.warning("No serial ports found on the system")
+                return None
             
             for port in ports:
-                _LOGGER.debug("Checking port: %s - Description: '%s' - Hardware ID: %s", 
+                _LOGGER.info("Checking port: %s - Description: '%s' - Hardware ID: %s", 
                             port.device, port.description, port.hwid)
                 
                 if any(keyword in port.description.lower() for keyword in 
                        ['zigbee', 'cc2531', 'cc2538', 'znp', 'zstack', 'usb', 'serial']):
                     _LOGGER.info("Found potential Zigbee port: %s (%s)", port.device, port.description)
-                    _LOGGER.debug("Port details: device=%s, description=%s, hwid=%s, vid=%s, pid=%s",
+                    _LOGGER.info("Port details: device=%s, description=%s, hwid=%s, vid=%s, pid=%s",
                                 port.device, port.description, port.hwid, 
                                 getattr(port, 'vid', 'N/A'), getattr(port, 'pid', 'N/A'))
                     return port.device
@@ -265,10 +269,13 @@ class ZigbeeCoordinator:
                     _LOGGER.debug("Port %s does not match Zigbee keywords, skipping", port.device)
             
             _LOGGER.warning("No serial port found matching Zigbee keywords")
-            _LOGGER.debug("Searched for keywords: zigbee, cc2531, cc2538, znp, zstack, usb, serial")
+            _LOGGER.info("Searched for keywords: zigbee, cc2531, cc2538, znp, zstack, usb, serial")
+            _LOGGER.info("Available ports that were checked:")
+            for port in ports:
+                _LOGGER.info("  - %s: %s (hwid: %s)", port.device, port.description, port.hwid)
         except Exception as e:
             _LOGGER.error("Error finding serial port: %s", e)
-            _LOGGER.debug("Exception details: %s", type(e).__name__, exc_info=True)
+            _LOGGER.error("Exception details: %s", type(e).__name__, exc_info=True)
         
         return None
 

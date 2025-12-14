@@ -3,6 +3,8 @@
 import logging
 import pathlib
 
+import voluptuous as vol
+
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -211,4 +213,16 @@ async def _register_services(hass: HomeAssistant, device_manager: GemnsDeviceMan
     hass.services.async_register(DOMAIN, "remove_device", remove_device)
     hass.services.async_register(DOMAIN, "create_entities", create_entities_for_devices)
     hass.services.async_register(DOMAIN, "start_pairing", start_pairing)
-    hass.services.async_register(DOMAIN, "send_zigbee_command", send_zigbee_command)
+    
+    send_zigbee_command_schema = vol.Schema({
+        vol.Required("device_id"): vol.All(vol.Coerce(int), vol.Range(min=0, max=4294967295)),
+        vol.Required("device_type"): vol.In(["bulb", "switch"]),
+        vol.Optional("state", default=True): bool,
+        vol.Optional("brightness"): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+    })
+    hass.services.async_register(
+        DOMAIN, 
+        "send_zigbee_command", 
+        send_zigbee_command,
+        schema=send_zigbee_command_schema
+    )

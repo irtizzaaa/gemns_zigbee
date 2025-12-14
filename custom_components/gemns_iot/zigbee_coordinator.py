@@ -273,12 +273,27 @@ class ZigbeeCoordinator:
                 _LOGGER.info("      VID: %s, PID: %s", vid_str, pid_str)
                 _LOGGER.info("")
             
-            usb_ports = [p for p in ports if 'ttyUSB' in p.device or 'ttyACM' in p.device]
+            usb_ports = []
+            for p in ports:
+                if 'ttyUSB' in p.device or 'ttyACM' in p.device:
+                    usb_ports.append(p)
             
             if usb_ports:
-                selected_port = usb_ports[0]
-                _LOGGER.info("Auto-selected USB serial port: %s", selected_port.device)
-                return selected_port.device
+                if len(usb_ports) == 1:
+                    selected_port = usb_ports[0]
+                    _LOGGER.info("Auto-selected USB serial port: %s", selected_port.device)
+                    return selected_port.device
+                else:
+                    ttyusb_ports = [p for p in usb_ports if 'ttyUSB' in p.device]
+                    if ttyusb_ports:
+                        selected_port = ttyusb_ports[0]
+                        _LOGGER.info("Auto-selected USB serial port (preferred ttyUSB): %s", selected_port.device)
+                        return selected_port.device
+                    else:
+                        selected_port = usb_ports[0]
+                        _LOGGER.info("Auto-selected USB serial port: %s", selected_port.device)
+                        _LOGGER.info("Multiple USB ports available. If this is incorrect, specify the port manually.")
+                        return selected_port.device
             elif len(ports) == 1:
                 _LOGGER.info("Auto-selected only available port: %s", ports[0].device)
                 return ports[0].device
@@ -303,7 +318,6 @@ class ZigbeeCoordinator:
                 if self.serial_connection and self.serial_connection.is_open:
                     bytes_waiting = self.serial_connection.in_waiting
                     if bytes_waiting > 0:
-                        _LOGGER.debug("Bytes waiting in serial buffer: %d", bytes_waiting)
                         data = self.serial_connection.read(bytes_waiting).decode('utf-8', errors='ignore')
                         _LOGGER.debug("Read %d bytes from serial: %s", len(data), repr(data))
                         buffer += data
@@ -313,8 +327,6 @@ class ZigbeeCoordinator:
                             if line.strip():
                                 _LOGGER.debug("Processing complete line from buffer: %s", repr(line))
                                 await self._handle_serial_message(line)
-                    else:
-                        _LOGGER.debug("No data waiting in serial buffer")
                 else:
                     _LOGGER.warning("Serial connection not open or not available")
                     if not self.serial_connection:

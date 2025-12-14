@@ -370,7 +370,7 @@ class GemnsSwitch(SwitchEntity):
             )
 
     async def _async_write_state(self):
-        """Async helper to write state."""
+        """Write state to Home Assistant."""
         self.async_write_ha_state()
 
     async def async_update(self) -> None:

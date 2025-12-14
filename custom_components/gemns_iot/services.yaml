@@ -96,3 +96,46 @@ gemns_scan_devices:
       name: "Dongle ID"
       description: "Specific dongle to scan (optional)"
       required: false
+
+gemns_start_pairing:
+  name: "Start Zigbee Pairing"
+  description: "Start Zigbee pairing mode to add new devices"
+
+gemns_send_zigbee_command:
+  name: "Send Zigbee Command"
+  description: "Send a control command to a Zigbee device"
+  fields:
+    device_id:
+      name: "Device ID"
+      description: "Zigbee device ID (4-byte unsigned integer)"
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 4294967295
+          step: 1
+    device_type:
+      name: "Device Type"
+      description: "Type of device"
+      required: true
+      selector:
+        select:
+          options:
+            - bulb
+            - switch
+    state:
+      name: "State"
+      description: "Device state (on/off)"
+      required: false
+      default: true
+      selector:
+        boolean:
+    brightness:
+      name: "Brightness"
+      description: "Brightness level (0-255, only for bulbs)"
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 255
+          step: 1

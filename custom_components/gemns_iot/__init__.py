@@ -23,7 +23,6 @@ PLATFORMS: list[Platform] = [
     Platform.LIGHT,
 ]
 
-# BLE platform
 BLE_PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.SENSOR,
@@ -180,8 +179,36 @@ async def _register_services(hass: HomeAssistant, device_manager: GemnsDeviceMan
         else:
             _LOGGER.error("Zigbee coordinator not available")
 
-    # Register services (removed MQTT dongle services)
+    async def send_zigbee_command(service_call):
+        """Send a Zigbee control command."""
+        if not zigbee_coordinator:
+            _LOGGER.error("Zigbee coordinator not available")
+            return
+        
+        data = service_call.data
+        device_id = data.get("device_id")
+        device_type = data.get("device_type", "bulb")
+        state = data.get("state", True)
+        brightness = data.get("brightness")
+        
+        if device_id is None:
+            _LOGGER.error("device_id is required for Zigbee command")
+            return
+        
+        try:
+            device_id = int(device_id)
+            if brightness is not None:
+                brightness = int(brightness)
+            await zigbee_coordinator.send_control_command(
+                device_id, device_type, state, brightness
+            )
+            _LOGGER.info("Sent Zigbee command: device_id=%d, type=%s, state=%s, brightness=%s",
+                        device_id, device_type, state, brightness)
+        except (ValueError, TypeError) as e:
+            _LOGGER.error("Invalid parameters for Zigbee command: %s", e)
+
     hass.services.async_register(DOMAIN, "add_device", add_device)
     hass.services.async_register(DOMAIN, "remove_device", remove_device)
     hass.services.async_register(DOMAIN, "create_entities", create_entities_for_devices)
     hass.services.async_register(DOMAIN, "start_pairing", start_pairing)
+    hass.services.async_register(DOMAIN, "send_zigbee_command", send_zigbee_command)

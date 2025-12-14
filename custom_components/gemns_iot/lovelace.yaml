@@ -205,3 +205,32 @@ views:
         submit_action:
           action: call-service
           service: gemns.add_device
+
+      - type: vertical-stack
+        title: "Zigbee Control"
+        cards:
+          - type: button
+            name: "Start Pairing"
+            icon: mdi:link-plus
+            tap_action:
+              action: call-service
+              service: gemns.start_pairing
+            show_state: false
+
+          - type: markdown
+            content: |
+              **Zigbee Commands**
+              
+              Use the services below to control Zigbee devices:
+              - **Start Pairing**: Put Zigbee coordinator in pairing mode
+              - **Send Zigbee Command**: Control devices (use Developer Tools > Services for full UI)
+              
+              Example service call:
+              ```yaml
+              service: gemns.send_zigbee_command
+              data:
+                device_id: 1
+                device_type: bulb
+                state: true
+                brightness: 128
+              ```

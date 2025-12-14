@@ -200,7 +200,7 @@ class GemnsDeviceManager:
             _LOGGER.error("Failed to publish MQTT message: %s", e)
 
     async def _async_notify_device_update(self, device_data):
-        """Async helper to notify device updates."""
+        """Notify device updates."""
         async_dispatcher_send(self.hass, SIGNAL_DEVICE_UPDATED, device_data)
 
         # Check if this is a new device that needs entity creation
@@ -211,7 +211,7 @@ class GemnsDeviceManager:
             async_dispatcher_send(self.hass, SIGNAL_DEVICE_ADDED, device_data)
 
     async def _async_notify_device_added(self, device_data):
-        """Async helper to notify device added."""
+        """Notify device added."""
         async_dispatcher_send(self.hass, SIGNAL_DEVICE_ADDED, device_data)
 
     @property

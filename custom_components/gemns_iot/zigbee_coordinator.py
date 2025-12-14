@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import re
 from datetime import UTC, datetime
 from typing import Any
@@ -31,7 +32,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Zigbee command constants
 ZIGBEE_CMD_PREFIX = "$AT"
 ZIGBEE_CMD_ADD = "add"
 ZIGBEE_CMD_DEL = "del"
@@ -40,7 +40,6 @@ ZIGBEE_CMD_PAIR = "pair"
 ZIGBEE_DEVICE_BULB = "bulb"
 ZIGBEE_DEVICE_SWITCH = "switch"
 
-# Serial settings
 SERIAL_BAUDRATE = 115200
 SERIAL_TIMEOUT = 5.0
 SERIAL_LINE_ENDING = "\r\n"
@@ -182,7 +181,7 @@ class ZigbeeCoordinator:
         self.parser = ZigbeeCommandParser()
         self._running = False
         self._read_task = None
-        self._devices: dict[int, dict[str, Any]] = {}  # device_id -> device_data
+        self._devices: dict[int, dict[str, Any]] = {}
 
     async def async_start(self):
         """Start the Zigbee coordinator."""
@@ -202,6 +201,10 @@ class ZigbeeCoordinator:
         
         if not self.serial_port:
             _LOGGER.error("No Zigbee serial port found - please check your USB connection and try specifying the port manually")
+            return False
+        
+        if not os.path.exists(self.serial_port):
+            _LOGGER.error("Serial port %s does not exist - please check if the device is connected", self.serial_port)
             return False
         
         _LOGGER.info("Attempting to connect to serial port: %s (baudrate: %d)", 
@@ -247,7 +250,6 @@ class ZigbeeCoordinator:
         """Find the Zigbee serial port."""
         _LOGGER.info("Scanning for available serial ports...")
         try:
-            # Run blocking serial port scan in executor to avoid blocking event loop
             loop = asyncio.get_event_loop()
             ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
             _LOGGER.info("Found %d serial port(s) total", len(ports))
@@ -256,25 +258,32 @@ class ZigbeeCoordinator:
                 _LOGGER.info("No serial ports found on the system - this is normal if no USB devices are connected")
                 return None
             
-            for port in ports:
-                _LOGGER.info("Checking port: %s - Description: '%s' - Hardware ID: %s", 
-                            port.device, port.description, port.hwid)
-                
-                if any(keyword in port.description.lower() for keyword in 
-                       ['zigbee', 'cc2531', 'cc2538', 'znp', 'zstack', 'usb', 'serial']):
-                    _LOGGER.info("Found potential Zigbee port: %s (%s)", port.device, port.description)
-                    _LOGGER.info("Port details: device=%s, description=%s, hwid=%s, vid=%s, pid=%s",
-                                port.device, port.description, port.hwid, 
-                                getattr(port, 'vid', 'N/A'), getattr(port, 'pid', 'N/A'))
-                    return port.device
-                else:
-                    _LOGGER.debug("Port %s does not match Zigbee keywords, skipping", port.device)
+            _LOGGER.info("All available serial ports:")
+            for i, port in enumerate(ports, 1):
+                vid = getattr(port, 'vid', None)
+                pid = getattr(port, 'pid', None)
+                vid_str = f"0x{vid:04X}" if vid else "N/A"
+                pid_str = f"0x{pid:04X}" if pid else "N/A"
+                _LOGGER.info("  [%d] %s", i, port.device)
+                _LOGGER.info("      Description: %s", port.description or "N/A")
+                _LOGGER.info("      Hardware ID: %s", port.hwid or "N/A")
+                _LOGGER.info("      VID: %s, PID: %s", vid_str, pid_str)
+                _LOGGER.info("")
             
-            _LOGGER.warning("No serial port found matching Zigbee keywords")
-            _LOGGER.info("Searched for keywords: zigbee, cc2531, cc2538, znp, zstack, usb, serial")
-            _LOGGER.info("Available ports that were checked:")
-            for port in ports:
-                _LOGGER.info("  - %s: %s (hwid: %s)", port.device, port.description, port.hwid)
+            usb_ports = [p for p in ports if 'ttyUSB' in p.device or 'ttyACM' in p.device]
+            
+            if usb_ports:
+                selected_port = usb_ports[0]
+                _LOGGER.info("Auto-selected USB serial port: %s", selected_port.device)
+                return selected_port.device
+            elif len(ports) == 1:
+                _LOGGER.info("Auto-selected only available port: %s", ports[0].device)
+                return ports[0].device
+            else:
+                _LOGGER.warning("Multiple ports found but none are USB serial adapters. Please specify the port manually.")
+                _LOGGER.info("Available ports: %s", ", ".join([p.device for p in ports]))
+                return None
+                
         except Exception as e:
             _LOGGER.error("Error finding serial port: %s", e)
             _LOGGER.error("Exception details: %s", type(e).__name__, exc_info=True)

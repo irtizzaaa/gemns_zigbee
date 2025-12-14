@@ -200,7 +200,8 @@ class ZigbeeCoordinator:
             _LOGGER.info("Using configured serial port: %s", self.serial_port)
         
         if not self.serial_port:
-            _LOGGER.error("No Zigbee serial port found - please check your USB connection and try specifying the port manually")
+            _LOGGER.warning("No Zigbee serial port found - please check your USB connection and try specifying the port manually")
+            _LOGGER.info("You can manually specify the port in the integration configuration")
             return False
         
         if not os.path.exists(self.serial_port):
@@ -254,11 +255,13 @@ class ZigbeeCoordinator:
             ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
             _LOGGER.info("Found %d serial port(s) total", len(ports))
             
+            _LOGGER.info("All available serial ports:")
             if len(ports) == 0:
-                _LOGGER.info("No serial ports found on the system - this is normal if no USB devices are connected")
+                _LOGGER.info("  (none)")
+                _LOGGER.info("")
+                _LOGGER.info("No serial ports found - this is normal if no USB devices are connected")
                 return None
             
-            _LOGGER.info("All available serial ports:")
             for i, port in enumerate(ports, 1):
                 vid = getattr(port, 'vid', None)
                 pid = getattr(port, 'pid', None)

@@ -149,6 +149,8 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 bytes.fromhex(decryption_key)
                 if len(decryption_key) != 32:  # 16 bytes = 32 hex chars
+                    enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
+                    serial_port = user_input.get(CONF_SERIAL_PORT, "").strip()
                     return self.async_show_form(
                         step_id="ble",
                         data_schema=vol.Schema({
@@ -160,10 +162,14 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                 "3": "Door Sensor",
                                 "4": "Leak Sensor"
                             }),
+                            vol.Optional(CONF_ENABLE_ZIGBEE, default=enable_zigbee): bool,
+                            vol.Optional(CONF_SERIAL_PORT, default=serial_port): str,
                         }),
                         errors={"base": "invalid_decryption_key_length"},
                     )
             except ValueError:
+                enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
+                serial_port = user_input.get(CONF_SERIAL_PORT, "").strip()
                 return self.async_show_form(
                     step_id="ble",
                     data_schema=vol.Schema({
@@ -175,6 +181,8 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             "3": "Door Sensor",
                             "4": "Leak Sensor"
                         }),
+                        vol.Optional(CONF_ENABLE_ZIGBEE, default=enable_zigbee): bool,
+                        vol.Optional(CONF_SERIAL_PORT, default=serial_port): str,
                     }),
                     errors={"base": "invalid_decryption_key_format"},
                 )
@@ -222,7 +230,7 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_SERIAL_PORT, default=""): str,
             }),
             description_placeholders={
-                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)\n\nZigbee Settings:\n• Enable Zigbee: Enable Zigbee coordinator\n• Serial Port: Leave empty for auto-detection, or specify (e.g., /dev/ttyUSB0)",
+                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)\n\nZigbee Settings:\n• Enable Zigbee: Check to enable Zigbee coordinator (auto-detects serial port)\n• Serial Port: Leave empty for auto-detection, or manually specify (e.g., /dev/ttyUSB0, COM3)",
                 "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
             }
         )

@@ -247,7 +247,9 @@ class ZigbeeCoordinator:
         """Find the Zigbee serial port."""
         _LOGGER.info("Scanning for available serial ports...")
         try:
-            ports = serial.tools.list_ports.comports()
+            # Run blocking serial port scan in executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
             _LOGGER.info("Found %d serial port(s) total", len(ports))
             
             if len(ports) == 0:

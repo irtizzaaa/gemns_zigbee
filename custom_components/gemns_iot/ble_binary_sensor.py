@@ -280,7 +280,7 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
         # Set device image based on device type
         device_image = self._get_device_image(device_type)
 
-        # Update device info
+        # Update device info (image parameter not supported in DeviceInfo)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self.config_entry.entry_id)},
             name=self._attr_name,
@@ -289,10 +289,6 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
             sw_version=self.coordinator.data.get("firmware_version", "1.0.0"),
             suggested_area=suggested_area,
         )
-
-        # Set device image if available
-        if device_image:
-            self._attr_device_info["image"] = device_image
 
     def _get_professional_device_id(self) -> str:
         """Generate a professional device identifier from MAC address."""

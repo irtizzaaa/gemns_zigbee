@@ -52,9 +52,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             hass.data[DOMAIN]["static_registered"] = True
 
-    # Check if this is a BLE device entry
-    if entry.data.get("address"):
+    # Check if this is a BLE device entry (has address and decryption_key)
+    if entry.data.get("address") and entry.data.get("decryption_key"):
         # This is a BLE device entry
+        _LOGGER.info("Detected BLE device entry, initializing BLE coordinator...")
         coordinator = GemnsBluetoothProcessorCoordinator(hass, entry)
         await coordinator.async_init()
         entry.runtime_data = coordinator
@@ -72,6 +73,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.async_on_unload(coordinator.async_start())
 
         return True
+    
+    # Check if this is a Zigbee-only entry (no address/decryption_key, but has enable_zigbee)
+    if not entry.data.get("address") and not entry.data.get("decryption_key"):
+        _LOGGER.info("Detected Zigbee-only entry, skipping BLE initialization...")
     # This is a traditional MQTT-based entry
     # Create device manager
     device_manager = GemnsDeviceManager(hass, entry.data)
@@ -120,11 +125,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     # Check if this is a BLE device entry
-    if entry.data.get("address"):
+    if entry.data.get("address") and entry.data.get("decryption_key"):
         # Unload BLE platforms
         unload_ok = await hass.config_entries.async_unload_platforms(entry, BLE_PLATFORMS)
     else:
-        # Unload traditional platforms
+        # Unload traditional platforms (Zigbee or MQTT)
         unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         # Clean up device manager and coordinator

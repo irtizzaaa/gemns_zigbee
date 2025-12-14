@@ -26,6 +26,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up Gemns™ IoT binary sensors from a config entry."""
 
+    # Check if this is a BLE device entry (has address field)
+    if config_entry.data.get("address"):
+        # This is a BLE device entry, don't create dongle status sensors here
+        return
+
     # Get device manager
     device_manager = hass.data[DOMAIN][config_entry.entry_id].get("device_manager")
     if not device_manager:
@@ -34,13 +39,16 @@ async def async_setup_entry(
     # Create binary sensor entities for dongle status
     entities = []
 
-    # BLE Connection Status
-    ble_sensor = GemnsBLESensor(device_manager)
-    entities.append(ble_sensor)
+    # Only create Zigbee sensor if Zigbee is enabled
+    enable_zigbee = config_entry.data.get("enable_zigbee", True)
+    if enable_zigbee:
+        zigbee_sensor = GemnsZigbeeSensor(device_manager)
+        entities.append(zigbee_sensor)
 
-    # Zigbee Connection Status
-    zigbee_sensor = GemnsZigbeeSensor(device_manager)
-    entities.append(zigbee_sensor)
+    # Only create BLE sensor if this is not a Zigbee-only entry
+    # (BLE sensor is for general BLE dongle status, not individual devices)
+    # For now, skip BLE sensor if Zigbee is selected
+    # BLE sensors are created per-device in ble_binary_sensor.py
 
     if entities:
         async_add_entities(entities)
@@ -66,7 +74,6 @@ class GemnsBLESensor(BinarySensorEntity):
             model="BLE Dongle",
             sw_version="1.0.0",
             configuration_url="https://github.com/manaam216/gemns_integration/blob/main/README.md",
-            image="https://brands.home-assistant.io/gemns/icon.png",
         )
 
         # Set custom icon for BLE dongle
@@ -141,7 +148,6 @@ class GemnsZigbeeSensor(BinarySensorEntity):
             model="Zigbee Dongle",
             sw_version="1.0.0",
             configuration_url="https://github.com/manaam216/gemns_integration/blob/main/README.md",
-            image="https://brands.home-assistant.io/gemns/icon.png",
         )
 
         # Set custom icon for Zigbee dongle

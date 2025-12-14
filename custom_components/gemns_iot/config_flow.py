@@ -19,6 +19,7 @@ from .const import (
     CONF_MQTT_PASSWORD,
     CONF_MQTT_USERNAME,
     CONF_SCAN_INTERVAL,
+    CONF_SERIAL_PORT,
     DEFAULT_ENABLE_ZIGBEE,
     DEFAULT_HEARTBEAT_INTERVAL,
     DEFAULT_MQTT_BROKER,
@@ -188,6 +189,10 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
 
+            # Get Zigbee settings
+            enable_zigbee = user_input.get(CONF_ENABLE_ZIGBEE, DEFAULT_ENABLE_ZIGBEE)
+            serial_port = user_input.get(CONF_SERIAL_PORT, "").strip() or None
+            
             # Create the config entry
             return self.async_create_entry(
                 title=device_name,
@@ -197,6 +202,8 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DECRYPTION_KEY: decryption_key,
                     CONF_DEVICE_NAME: device_name,
                     CONF_DEVICE_TYPE: device_type,
+                    CONF_ENABLE_ZIGBEE: enable_zigbee,
+                    CONF_SERIAL_PORT: serial_port,
                 },
             )
 
@@ -211,9 +218,11 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "3": "Door Sensor",
                     "4": "Leak Sensor"
                 }),
+                vol.Optional(CONF_ENABLE_ZIGBEE, default=DEFAULT_ENABLE_ZIGBEE): bool,
+                vol.Optional(CONF_SERIAL_PORT, default=""): str,
             }),
             description_placeholders={
-                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)",
+                "message": "Gemns™ IoT BLE Setup\n\nEnter your decryption key to complete setup.\n\nThe MAC address will be automatically detected when your Gemns™ IoT device is discovered.\n\nDevice Types:\n• Type 1: Button\n• Type 2: Vibration Monitor\n• Type 3: Door Sensor\n• Type 4: Leak Sensor\n\nDecryption Key: 32-character hex string (16 bytes)\n\nZigbee Settings:\n• Enable Zigbee: Enable Zigbee coordinator\n• Serial Port: Leave empty for auto-detection, or specify (e.g., /dev/ttyUSB0)",
                 "integration_icon": "https://brands.home-assistant.io/gemns/icon.png"
             }
         )

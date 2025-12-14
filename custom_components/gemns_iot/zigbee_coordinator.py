@@ -52,17 +52,21 @@ class ZigbeeCommandParser:
     @staticmethod
     def parse_command(line: str) -> dict[str, Any] | None:
         """Parse a Zigbee command line."""
+        _LOGGER.debug("Parsing command line: %s", repr(line))
         line = line.strip()
         
         if not line.startswith(ZIGBEE_CMD_PREFIX):
+            _LOGGER.debug("Line does not start with %s, ignoring", ZIGBEE_CMD_PREFIX)
             return None
         
-        line = line[len(ZIGBEE_CMD_PREFIX):].strip()
+        line_suffix = line[len(ZIGBEE_CMD_PREFIX):].strip()
+        _LOGGER.debug("Command suffix after prefix: %s", repr(line_suffix))
         
         pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
-        match = re.match(pattern_new, line)
+        match = re.match(pattern_new, line_suffix)
         
         if match and match.group(1) == ZIGBEE_CMD_STATE:
+            _LOGGER.debug("Matched new format pattern for STATE command")
             command = match.group(1)
             device_type = match.group(2)
             length = int(match.group(3))
@@ -71,8 +75,12 @@ class ZigbeeCommandParser:
             cmd_type = int(match.group(6))
             brightness = match.group(7) if match.group(7) else None
             
+            _LOGGER.debug("Parsed new format: command=%s, device_type=%s, length=%d, src_id=%d, device_type_code=%d, cmd_type=%d, brightness=%s",
+                         command, device_type, length, src_id, device_type_code, cmd_type, brightness)
+            
             if device_type == "sw":
                 device_type = ZIGBEE_DEVICE_SWITCH
+                _LOGGER.debug("Converted 'sw' to 'switch'")
             
             result = {
                 "command": command,
@@ -85,22 +93,29 @@ class ZigbeeCommandParser:
             
             if brightness:
                 result["brightness"] = max(0, min(255, int(brightness)))
+                _LOGGER.debug("Added brightness to result: %d", result["brightness"])
             
+            _LOGGER.debug("Parse result (new format): %s", result)
             return result
         
         pattern_old = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s*(\d*)\s*(\d*)'
-        match = re.match(pattern_old, line)
+        match = re.match(pattern_old, line_suffix)
         
         if not match:
             _LOGGER.warning("Failed to parse Zigbee command: %s", line)
+            _LOGGER.debug("Tried patterns: new format (STATE only) and old format, neither matched")
             return None
         
+        _LOGGER.debug("Matched old format pattern")
         command = match.group(1)
         device_type = match.group(2)
         length = int(match.group(3))
         type_code = int(match.group(4))
         device_id = match.group(5) if match.group(5) else None
         brightness = match.group(6) if match.group(6) else None
+        
+        _LOGGER.debug("Parsed old format: command=%s, device_type=%s, length=%d, type_code=%d, device_id=%s, brightness=%s",
+                     command, device_type, length, type_code, device_id, brightness)
         
         result = {
             "command": command,
@@ -115,6 +130,7 @@ class ZigbeeCommandParser:
         if brightness:
             result["brightness"] = max(0, min(255, int(brightness)))
         
+        _LOGGER.debug("Parse result (old format): %s", result)
         return result
 
     @staticmethod
@@ -170,16 +186,26 @@ class ZigbeeCoordinator:
 
     async def async_start(self):
         """Start the Zigbee coordinator."""
+        _LOGGER.debug("Starting Zigbee coordinator...")
+        
         if not SERIAL_AVAILABLE:
             _LOGGER.error("pyserial not available, cannot start Zigbee coordinator")
             return False
         
+        _LOGGER.debug("pyserial is available")
+        
         if not self.serial_port:
+            _LOGGER.debug("No serial port specified, attempting auto-detection...")
             self.serial_port = await self._find_serial_port()
+        else:
+            _LOGGER.debug("Using configured serial port: %s", self.serial_port)
         
         if not self.serial_port:
             _LOGGER.error("No Zigbee serial port found")
             return False
+        
+        _LOGGER.debug("Attempting to connect to serial port: %s (baudrate: %d)", 
+                      self.serial_port, SERIAL_BAUDRATE)
         
         try:
             self.serial_connection = serial.Serial(
@@ -189,12 +215,16 @@ class ZigbeeCoordinator:
                 write_timeout=SERIAL_TIMEOUT
             )
             _LOGGER.info("Connected to Zigbee dongle on %s", self.serial_port)
+            _LOGGER.debug("Serial connection details: port=%s, baudrate=%d, timeout=%s, is_open=%s",
+                         self.serial_port, SERIAL_BAUDRATE, SERIAL_TIMEOUT, self.serial_connection.is_open)
         except Exception as e:
             _LOGGER.error("Failed to open serial port %s: %s", self.serial_port, e)
+            _LOGGER.debug("Exception details: %s", type(e).__name__, exc_info=True)
             return False
         
         self._running = True
         self._read_task = asyncio.create_task(self._read_serial_loop())
+        _LOGGER.debug("Zigbee coordinator started successfully, read loop task created")
         
         return True
 
@@ -215,57 +245,96 @@ class ZigbeeCoordinator:
 
     async def _find_serial_port(self) -> str | None:
         """Find the Zigbee serial port."""
+        _LOGGER.debug("Scanning for available serial ports...")
         try:
             ports = serial.tools.list_ports.comports()
+            _LOGGER.debug("Found %d serial port(s) total", len(ports))
+            
             for port in ports:
+                _LOGGER.debug("Checking port: %s - Description: '%s' - Hardware ID: %s", 
+                            port.device, port.description, port.hwid)
+                
                 if any(keyword in port.description.lower() for keyword in 
                        ['zigbee', 'cc2531', 'cc2538', 'znp', 'zstack', 'usb', 'serial']):
                     _LOGGER.info("Found potential Zigbee port: %s (%s)", port.device, port.description)
+                    _LOGGER.debug("Port details: device=%s, description=%s, hwid=%s, vid=%s, pid=%s",
+                                port.device, port.description, port.hwid, 
+                                getattr(port, 'vid', 'N/A'), getattr(port, 'pid', 'N/A'))
                     return port.device
+                else:
+                    _LOGGER.debug("Port %s does not match Zigbee keywords, skipping", port.device)
+            
+            _LOGGER.warning("No serial port found matching Zigbee keywords")
+            _LOGGER.debug("Searched for keywords: zigbee, cc2531, cc2538, znp, zstack, usb, serial")
         except Exception as e:
-            _LOGGER.warning("Error finding serial port: %s", e)
+            _LOGGER.error("Error finding serial port: %s", e)
+            _LOGGER.debug("Exception details: %s", type(e).__name__, exc_info=True)
         
         return None
 
     async def _read_serial_loop(self):
         """Read loop for serial messages."""
+        _LOGGER.debug("Serial read loop started")
         buffer = ""
         
         while self._running:
             try:
-                if self.serial_connection and self.serial_connection.in_waiting > 0:
-                    data = self.serial_connection.read(self.serial_connection.in_waiting).decode('utf-8', errors='ignore')
-                    buffer += data
-                    
-                    while SERIAL_LINE_ENDING in buffer:
-                        line, buffer = buffer.split(SERIAL_LINE_ENDING, 1)
-                        if line.strip():
-                            await self._handle_serial_message(line)
+                if self.serial_connection and self.serial_connection.is_open:
+                    bytes_waiting = self.serial_connection.in_waiting
+                    if bytes_waiting > 0:
+                        _LOGGER.debug("Bytes waiting in serial buffer: %d", bytes_waiting)
+                        data = self.serial_connection.read(bytes_waiting).decode('utf-8', errors='ignore')
+                        _LOGGER.debug("Read %d bytes from serial: %s", len(data), repr(data))
+                        buffer += data
+                        
+                        while SERIAL_LINE_ENDING in buffer:
+                            line, buffer = buffer.split(SERIAL_LINE_ENDING, 1)
+                            if line.strip():
+                                _LOGGER.debug("Processing complete line from buffer: %s", repr(line))
+                                await self._handle_serial_message(line)
+                    else:
+                        _LOGGER.debug("No data waiting in serial buffer")
+                else:
+                    _LOGGER.warning("Serial connection not open or not available")
+                    if not self.serial_connection:
+                        _LOGGER.debug("serial_connection is None")
+                    elif not self.serial_connection.is_open:
+                        _LOGGER.debug("serial_connection.is_open is False")
                 
                 await asyncio.sleep(0.1)
                 
             except Exception as e:
                 _LOGGER.error("Error reading from serial: %s", e)
+                _LOGGER.debug("Exception in read loop: %s", type(e).__name__, exc_info=True)
                 await asyncio.sleep(1)
 
     async def _handle_serial_message(self, line: str):
         """Handle a message from the serial port."""
-        _LOGGER.debug("Received serial message: %s", line)
+        _LOGGER.debug("Received serial message: %s (length: %d)", line, len(line))
         
         parsed = self.parser.parse_command(line)
         if not parsed:
+            _LOGGER.debug("Failed to parse message as Zigbee command: %s", line)
             return
         
+        _LOGGER.debug("Parsed command: %s", parsed)
         command = parsed.get("command")
         device_type = parsed.get("device_type")
         device_id = parsed.get("device_id")
         
+        _LOGGER.debug("Command type: %s, Device type: %s, Device ID: %s", command, device_type, device_id)
+        
         if command == ZIGBEE_CMD_ADD:
+            _LOGGER.debug("Handling ADD device command")
             await self._handle_add_device(parsed)
         elif command == ZIGBEE_CMD_DEL:
+            _LOGGER.debug("Handling DEL device command")
             await self._handle_delete_device(parsed)
         elif command == ZIGBEE_CMD_STATE:
+            _LOGGER.debug("Handling STATE update command")
             await self._handle_state_update(parsed)
+        else:
+            _LOGGER.debug("Unknown command type: %s", command)
 
     async def _handle_add_device(self, parsed: dict[str, Any]):
         """Handle device addition."""
@@ -338,12 +407,16 @@ class ZigbeeCoordinator:
 
     async def send_pairing_command(self):
         """Send pairing command to enter pairing mode."""
+        _LOGGER.debug("Building pairing command...")
         command = self.parser.build_command(ZIGBEE_CMD_PAIR, "")
+        _LOGGER.debug("Built pairing command: %s", repr(command))
         await self._write_serial(command)
         _LOGGER.info("Sent pairing command")
 
     async def send_control_command(self, device_id: int, device_type: str, state: bool, brightness: int | None = None):
         """Send control command to device."""
+        _LOGGER.debug("Building control command: device_id=%d, device_type=%s, state=%s, brightness=%s",
+                     device_id, device_type, state, brightness)
         command = self.parser.build_command(
             ZIGBEE_CMD_STATE,
             device_type,
@@ -351,20 +424,29 @@ class ZigbeeCoordinator:
             state=state,
             brightness=brightness
         )
+        _LOGGER.debug("Built command string: %s", repr(command))
         await self._write_serial(command)
         _LOGGER.info("Sent control command: device_id=%d, type=%s, state=%s, brightness=%s", 
                     device_id, device_type, state, brightness)
 
     async def _write_serial(self, data: str):
         """Write data to serial port."""
+        _LOGGER.debug("Attempting to write to serial: %s (length: %d bytes)", repr(data), len(data.encode('utf-8')))
         try:
             if self.serial_connection and self.serial_connection.is_open:
-                self.serial_connection.write(data.encode('utf-8'))
-                _LOGGER.debug("Sent serial command: %s", data.strip())
+                encoded_data = data.encode('utf-8')
+                bytes_written = self.serial_connection.write(encoded_data)
+                _LOGGER.debug("Wrote %d bytes to serial: %s", bytes_written, data.strip())
+                _LOGGER.debug("Serial connection status: is_open=%s, in_waiting=%d", 
+                            self.serial_connection.is_open, self.serial_connection.in_waiting)
             else:
-                _LOGGER.error("Serial connection not open")
+                _LOGGER.error("Serial connection not open - cannot write")
+                _LOGGER.debug("Connection state: connection=%s, is_open=%s", 
+                            self.serial_connection is not None,
+                            self.serial_connection.is_open if self.serial_connection else False)
         except Exception as e:
             _LOGGER.error("Error writing to serial: %s", e)
+            _LOGGER.debug("Exception details: %s", type(e).__name__, exc_info=True)
 
     def get_device_by_zigbee_id(self, zigbee_id: int) -> dict[str, Any] | None:
         """Get device data by Zigbee ID."""

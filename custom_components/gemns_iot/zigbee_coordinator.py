@@ -253,7 +253,7 @@ class ZigbeeCoordinator:
             _LOGGER.info("Found %d serial port(s) total", len(ports))
             
             if len(ports) == 0:
-                _LOGGER.warning("No serial ports found on the system")
+                _LOGGER.info("No serial ports found on the system - this is normal if no USB devices are connected")
                 return None
             
             for port in ports:

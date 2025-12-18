@@ -426,8 +426,31 @@ class ZigbeeCoordinator:
         
         device_data = self._devices.get(device_id)
         if not device_data:
-            _LOGGER.warning("State update for unknown device ID: %d", device_id)
-            return
+            # Auto-create a device on first state message (office LAN, auto-provisioning).
+            _LOGGER.info(
+                "State update for unknown device ID: %d (%s). Creating device from state.",
+                device_id,
+                device_type,
+            )
+            category = (
+                DEVICE_CATEGORY_LIGHT
+                if device_type == ZIGBEE_DEVICE_BULB
+                else DEVICE_CATEGORY_SWITCH
+            )
+            device_data = {
+                "device_id": f"zigbee_{device_type}_{device_id}",
+                "zigbee_id": device_id,
+                "device_type": DEVICE_TYPE_ZIGBEE,
+                "category": category,
+                "name": f"Zigbee {device_type.title()} {device_id}",
+                "status": DEVICE_STATUS_CONNECTED,
+                "properties": {
+                    "switch_state": False,
+                    "light_state": False,
+                },
+            }
+            self._devices[device_id] = device_data
+            await self.device_manager.add_device(device_data)
         
         if device_type == ZIGBEE_DEVICE_BULB:
             if brightness is not None:

@@ -113,14 +113,24 @@ class GemnsLight(LightEntity):
 
     def _set_light_properties(self):
         """Set light properties based on device capabilities."""
-        # Default light properties
-        self._attr_supported_color_modes = {ColorMode.RGB, ColorMode.COLOR_TEMP, ColorMode.WHITE}
-        self._attr_color_mode = ColorMode.RGB
-        self._attr_brightness = 255
-        self._attr_rgb_color = (255, 255, 255)
-        self._attr_color_temp_kelvin = 4000
-        self._attr_min_color_temp_kelvin = 2000  # Warm white
-        self._attr_max_color_temp_kelvin = 6500  # Cool white
+        # For Zigbee bulbs we only support brightness (no hue / color temp in UI)
+        if self.device.get("device_type") == DEVICE_TYPE_ZIGBEE:
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_brightness = 255
+        else:
+            # Default light properties for non‑Zigbee lights
+            self._attr_supported_color_modes = {
+                ColorMode.RGB,
+                ColorMode.COLOR_TEMP,
+                ColorMode.WHITE,
+            }
+            self._attr_color_mode = ColorMode.RGB
+            self._attr_brightness = 255
+            self._attr_rgb_color = (255, 255, 255)
+            self._attr_color_temp_kelvin = 4000
+            self._attr_min_color_temp_kelvin = 2000  # Warm white
+            self._attr_max_color_temp_kelvin = 6500  # Cool white
 
     def _update_state(self):
         """Update light state from device data."""
@@ -181,15 +191,10 @@ class GemnsLight(LightEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    brightness = None
+                    # For Zigbee bulbs we only consider brightness (no hue)
                     if ATTR_BRIGHTNESS in kwargs:
                         brightness = kwargs[ATTR_BRIGHTNESS]
                         self._attr_brightness = brightness
-                    elif ATTR_RGB_COLOR in kwargs:
-                        rgb_color = kwargs[ATTR_RGB_COLOR]
-                        self._attr_rgb_color = rgb_color
-                        self._attr_color_mode = ColorMode.RGB
-                        brightness = int((rgb_color[0] + rgb_color[1] + rgb_color[2]) / 3)
                     else:
                         brightness = self._attr_brightness
                     
@@ -216,23 +221,22 @@ class GemnsLight(LightEntity):
                 turn_on_message["brightness"] = brightness
                 self._attr_brightness = brightness
 
-            # Handle RGB color
-            if ATTR_RGB_COLOR in kwargs:
+            # Handle RGB color for non‑Zigbee lights only
+            if not is_zigbee and ATTR_RGB_COLOR in kwargs:
                 rgb_color = kwargs[ATTR_RGB_COLOR]
                 turn_on_message["rgb_color"] = list(rgb_color)
-                if not is_zigbee:
-                    self._attr_rgb_color = rgb_color
-                    self._attr_color_mode = ColorMode.RGB
+                self._attr_rgb_color = rgb_color
+                self._attr_color_mode = ColorMode.RGB
 
-            # Handle color temperature
-            if ATTR_COLOR_TEMP_KELVIN in kwargs:
+            # Handle color temperature for non‑Zigbee lights only
+            if not is_zigbee and ATTR_COLOR_TEMP_KELVIN in kwargs:
                 color_temp_kelvin = kwargs[ATTR_COLOR_TEMP_KELVIN]
                 # Convert Kelvin to mireds for Home Assistant
                 color_temp_mireds = 1000000 // color_temp_kelvin
                 turn_on_message["color_temp"] = color_temp_mireds
                 self._attr_color_temp = color_temp_mireds
                 self._attr_color_mode = ColorMode.COLOR_TEMP
-            elif "color_temp" in kwargs:  # Fallback for backward compatibility
+            elif not is_zigbee and "color_temp" in kwargs:  # Fallback for backward compatibility
                 color_temp = kwargs["color_temp"]
                 turn_on_message["color_temp"] = color_temp
                 self._attr_color_temp = color_temp

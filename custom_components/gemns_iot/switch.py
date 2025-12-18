@@ -170,6 +170,16 @@ class GemnsSwitch(SwitchEntity):
         try:
             # Check if this is a Zigbee device
             is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            device_category = self.device.get("category")
+            
+            # For Zigbee switches we treat them as input-only (status), not controllable
+            if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
+                _LOGGER.info(
+                    "Ignoring control request for Zigbee switch %s; "
+                    "switch is status-only in UI.",
+                    self.device_id,
+                )
+                return
             
             if is_zigbee:
                 # Get Zigbee coordinator from hass data
@@ -218,6 +228,16 @@ class GemnsSwitch(SwitchEntity):
         try:
             # Check if this is a Zigbee device
             is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            device_category = self.device.get("category")
+            
+            # For Zigbee switches we treat them as input-only (status), not controllable
+            if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
+                _LOGGER.info(
+                    "Ignoring control request for Zigbee switch %s; "
+                    "switch is status-only in UI.",
+                    self.device_id,
+                )
+                return
             
             if is_zigbee:
                 # Get Zigbee coordinator from hass data

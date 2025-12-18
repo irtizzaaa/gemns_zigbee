@@ -40,9 +40,13 @@ class GemnsDeviceManager:
         self._subscribers = {}
         self._mqtt_client = None
         self._created_entities = set()
+        # Simple persistence file for devices
+        self._storage_path = self.hass.config.path(f".{DOMAIN}_devices.json")
 
     async def start(self):
         """Start the device manager."""
+        # Load devices from storage on startup so entities can be recreated
+        await self._load_devices()
         # Subscribe to MQTT topics only if MQTT broker is configured
         if self.config.get(CONF_MQTT_BROKER):
             await self._subscribe_to_mqtt()
@@ -56,6 +60,7 @@ class GemnsDeviceManager:
     async def stop(self):
         """Stop the device manager."""
         # Cleanup tasks
+        await self._save_devices()
 
     async def add_device(self, device_data: dict[str, Any]) -> bool:
         """Add a new device manually."""
@@ -79,6 +84,9 @@ class GemnsDeviceManager:
             }
 
             self.devices[device_id] = device
+
+            # Persist devices
+            await self._save_devices()
 
             # Notify subscribers - this is called from async context, so it's safe
             self.hass.async_create_task(
@@ -164,6 +172,9 @@ class GemnsDeviceManager:
                 self.devices[device_id] = data
                 _LOGGER.info("Updated device %s with status: %s", device_id, data.get('status'))
 
+                # Persist devices on update
+                self.hass.async_create_task(self._save_devices())
+
                 # Schedule the dispatcher call in the main event loop
                 self.hass.loop.call_soon_threadsafe(
                     lambda: self.hass.async_create_task(
@@ -245,6 +256,35 @@ class GemnsDeviceManager:
                     self.hass.async_create_task(
                         self._async_notify_device_update(device)
                     )
+
+    async def _load_devices(self):
+        """Load devices from a simple JSON file."""
+        try:
+            path = self._storage_path
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                self.devices = data
+                _LOGGER.info("Loaded %d devices from storage", len(self.devices))
+                # Notify that these devices exist so entities can be recreated
+                for device in self.devices.values():
+                    await self._async_notify_device_added(device)
+            else:
+                _LOGGER.warning("Device storage file format invalid, expected dict")
+        except FileNotFoundError:
+            _LOGGER.info("No existing device storage file found, starting empty")
+        except (OSError, ValueError, TypeError) as e:
+            _LOGGER.error("Failed to load devices from storage: %s", e)
+
+    async def _save_devices(self):
+        """Save devices to a simple JSON file."""
+        try:
+            path = self._storage_path
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.devices, f, ensure_ascii=False, indent=2)
+            _LOGGER.debug("Saved %d devices to storage", len(self.devices))
+        except (OSError, TypeError, ValueError) as e:
+            _LOGGER.error("Failed to save devices to storage: %s", e)
 
     def subscribe_to_device_updates(self, device_id: str, callback):
         """Subscribe to device updates."""

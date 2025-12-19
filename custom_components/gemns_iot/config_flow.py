@@ -11,6 +11,7 @@ from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.data_entry_flow import FlowResult
 
 try:
+    import serial
     import serial.tools.list_ports
     SERIAL_AVAILABLE = True
 except ImportError:
@@ -168,13 +169,21 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             loop = asyncio.get_event_loop()
             ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
             
+            _LOGGER.debug("Found %d serial port(s)", len(ports))
+            
+            if not ports:
+                _LOGGER.info("No serial ports found on system")
+                return ports_dict
+            
             for port in ports:
                 device = port.device
                 ports_dict[device] = device
+                _LOGGER.debug("Added serial port: %s", device)
                 
         except Exception as e:
-            _LOGGER.error("Error listing serial ports: %s", e)
+            _LOGGER.error("Error listing serial ports: %s", e, exc_info=True)
         
+        _LOGGER.debug("Returning %d serial port options", len(ports_dict))
         return ports_dict
 
     async def async_step_zigbee(self, user_input: dict[str, Any] | None = None) -> FlowResult:

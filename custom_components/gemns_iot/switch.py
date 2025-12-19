@@ -198,8 +198,8 @@ class GemnsSwitch(SwitchEntity):
                 else:
                     _LOGGER.error("Zigbee coordinator not available")
                     return
-                else:
-                    if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
+            else:
+                if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
                     await self._turn_on_light(**kwargs)
                 else:
                     await self._turn_on_switch()

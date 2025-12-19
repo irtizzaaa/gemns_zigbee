@@ -261,12 +261,17 @@ class GemnsDeviceManager:
         """Load devices from a simple JSON file."""
         try:
             path = self._storage_path
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            
+            def _load_file():
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            
+            loop = asyncio.get_event_loop()
+            data = await loop.run_in_executor(None, _load_file)
+            
             if isinstance(data, dict):
                 self.devices = data
                 _LOGGER.info("Loaded %d devices from storage", len(self.devices))
-                # Notify that these devices exist so entities can be recreated
                 for device in self.devices.values():
                     await self._async_notify_device_added(device)
             else:
@@ -280,8 +285,14 @@ class GemnsDeviceManager:
         """Save devices to a simple JSON file."""
         try:
             path = self._storage_path
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(self.devices, f, ensure_ascii=False, indent=2)
+            devices_data = self.devices.copy()
+            
+            def _save_file():
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(devices_data, f, ensure_ascii=False, indent=2)
+            
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _save_file)
             _LOGGER.debug("Saved %d devices to storage", len(self.devices))
         except (OSError, TypeError, ValueError) as e:
             _LOGGER.error("Failed to save devices to storage: %s", e)

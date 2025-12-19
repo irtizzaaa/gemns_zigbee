@@ -1,5 +1,6 @@
 """Config flow for Gemns™ IoT integration."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -8,6 +9,12 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.data_entry_flow import FlowResult
+
+try:
+    import serial.tools.list_ports
+    SERIAL_AVAILABLE = True
+except ImportError:
+    SERIAL_AVAILABLE = False
 
 from .const import (
     CONF_DECRYPTION_KEY,
@@ -149,6 +156,28 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def _get_available_serial_ports(self) -> dict[str, str]:
+        """Get available serial ports as a dictionary for dropdown."""
+        ports_dict = {"": "Auto-detect (Recommended)"}
+        
+        if not SERIAL_AVAILABLE:
+            _LOGGER.warning("pyserial not available, cannot list serial ports")
+            return ports_dict
+        
+        try:
+            loop = asyncio.get_event_loop()
+            ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
+            
+            for port in ports:
+                # Use device path as both key and label (as shown in user's example)
+                device = port.device
+                ports_dict[device] = device
+                
+        except Exception as e:
+            _LOGGER.error("Error listing serial ports: %s", e)
+        
+        return ports_dict
+
     async def async_step_zigbee(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle Zigbee configuration step."""
         if user_input is not None:
@@ -167,14 +196,17 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 },
             )
         
+        # Get available serial ports for dropdown
+        serial_ports = await self._get_available_serial_ports()
+        
         return self.async_show_form(
             step_id="zigbee",
             data_schema=vol.Schema({
                 vol.Optional(CONF_ENABLE_ZIGBEE, default=DEFAULT_ENABLE_ZIGBEE): bool,
-                vol.Optional(CONF_SERIAL_PORT, default=""): str,
+                vol.Optional(CONF_SERIAL_PORT, default=""): vol.In(serial_ports),
             }),
             description_placeholders={
-                "message": "Zigbee Configuration\n\nConfigure your Zigbee coordinator settings.\n\n• Enable Zigbee: Check to enable Zigbee coordinator\n• Serial Port: Leave empty for auto-detection, or manually specify (e.g., /dev/ttyUSB0, COM3)",
+                "message": "Zigbee Configuration\n\nConfigure your Zigbee coordinator settings.\n\n• Enable Zigbee: Check to enable Zigbee coordinator\n• Serial Port: Select a serial port from the list, or choose 'Auto-detect' to automatically find the Zigbee dongle",
             }
         )
 

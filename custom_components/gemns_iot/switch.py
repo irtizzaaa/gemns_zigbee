@@ -121,6 +121,11 @@ class GemnsSwitch(SwitchEntity):
         self._attr_device_class = None
         self._attr_icon = "mdi:power-switch"
 
+        # For Zigbee switches, mark as read-only (status only)
+        if device_type == DEVICE_TYPE_ZIGBEE and device_category == DEVICE_CATEGORY_SWITCH:
+            self._attr_assumed_state = False
+            self._attr_icon = "mdi:gesture-tap-button"
+
         # Set properties based on device type and category
         if device_category == DEVICE_CATEGORY_LIGHT:
             self._attr_device_class = "light"
@@ -174,11 +179,11 @@ class GemnsSwitch(SwitchEntity):
             
             # For Zigbee switches we treat them as input-only (status), not controllable
             if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
-                _LOGGER.info(
-                    "Ignoring control request for Zigbee switch %s; "
-                    "switch is status-only in UI.",
+                _LOGGER.warning(
+                    "Zigbee switch %s is read-only (status only). Control request ignored.",
                     self.device_id,
                 )
+                # Don't update state - this is a read-only switch
                 return
             
             if is_zigbee:
@@ -232,11 +237,11 @@ class GemnsSwitch(SwitchEntity):
             
             # For Zigbee switches we treat them as input-only (status), not controllable
             if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
-                _LOGGER.info(
-                    "Ignoring control request for Zigbee switch %s; "
-                    "switch is status-only in UI.",
+                _LOGGER.warning(
+                    "Zigbee switch %s is read-only (status only). Control request ignored.",
                     self.device_id,
                 )
+                # Don't update state - this is a read-only switch
                 return
             
             if is_zigbee:
@@ -338,6 +343,10 @@ class GemnsSwitch(SwitchEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return entity specific state attributes."""
+        is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+        device_category = self.device.get("category")
+        is_read_only = is_zigbee and device_category == DEVICE_CATEGORY_SWITCH
+        
         attributes = {
             "device_id": self.device_id,
             "device_type": self.device.get("device_type"),
@@ -347,6 +356,7 @@ class GemnsSwitch(SwitchEntity):
             "pairing_status": self.device.get("pairing_status"),
             "firmware_version": self.device.get("firmware_version"),
             "created_manually": self.device.get("created_manually", False),
+            "read_only": is_read_only,
         }
 
         # Add light-specific attributes

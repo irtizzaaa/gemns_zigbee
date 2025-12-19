@@ -169,7 +169,6 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ports = await loop.run_in_executor(None, serial.tools.list_ports.comports)
             
             for port in ports:
-                # Use device path as both key and label (as shown in user's example)
                 device = port.device
                 ports_dict[device] = device
                 
@@ -196,7 +195,6 @@ class GemnsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 },
             )
         
-        # Get available serial ports for dropdown
         serial_ports = await self._get_available_serial_ports()
         
         return self.async_show_form(

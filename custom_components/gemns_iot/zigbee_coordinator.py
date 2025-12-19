@@ -391,11 +391,9 @@ class ZigbeeCoordinator:
         
         device_manager_id = f"zigbee_{device_type}_{device_id}"
         
-        # Check if device already exists to avoid duplicates
         if device_manager_id in self.device_manager.devices:
             _LOGGER.debug("Device already exists, updating: %s (ID: %d)", device_manager_id, device_id)
             device_data = self.device_manager.devices[device_manager_id]
-            # Update the device data
             device_data.update({
                 "zigbee_id": device_id,
                 "device_type": DEVICE_TYPE_ZIGBEE,
@@ -441,15 +439,12 @@ class ZigbeeCoordinator:
         
         device_data = self._devices.get(device_id)
         if not device_data:
-            # Check if device already exists in device_manager to avoid duplicates
             device_manager_id = f"zigbee_{device_type}_{device_id}"
             if device_manager_id in self.device_manager.devices:
-                # Device already exists, use it
                 device_data = self.device_manager.devices[device_manager_id]
                 self._devices[device_id] = device_data
                 _LOGGER.debug("Found existing device in device_manager: %s", device_manager_id)
             else:
-                # Auto-create a device on first state message (office LAN, auto-provisioning).
                 _LOGGER.info(
                     "State update for unknown device ID: %d (%s). Creating device from state.",
                     device_id,

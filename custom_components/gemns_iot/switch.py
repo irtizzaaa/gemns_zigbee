@@ -117,16 +117,12 @@ class GemnsSwitch(SwitchEntity):
         device_type = self.device.get("device_type", "")
         device_category = self.device.get("category", "")
 
-        # Default properties
         self._attr_device_class = None
         self._attr_icon = "mdi:power-switch"
 
-        # For Zigbee switches, mark as read-only (status only)
         if device_type == DEVICE_TYPE_ZIGBEE and device_category == DEVICE_CATEGORY_SWITCH:
             self._attr_assumed_state = False
             self._attr_icon = "mdi:gesture-tap-button"
-
-        # Set properties based on device type and category
         if device_category == DEVICE_CATEGORY_LIGHT:
             self._attr_device_class = "light"
             self._attr_icon = "mdi:lightbulb"
@@ -149,7 +145,7 @@ class GemnsSwitch(SwitchEntity):
             self._attr_color_mode = "rgb"
             self._attr_rgb_color = [255, 255, 255]  # Default white
             self._attr_brightness = 255  # Default full brightness
-            self._attr_color_temp = 4000  # Default color temperature
+            self._attr_color_temp = 4000
 
     def _update_state(self):
         """Update switch state from device data."""
@@ -173,21 +169,17 @@ class GemnsSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
         try:
-            # Check if this is a Zigbee device
             is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
             device_category = self.device.get("category")
             
-            # For Zigbee switches we treat them as input-only (status), not controllable
             if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
                 _LOGGER.warning(
                     "Zigbee switch %s is read-only (status only). Control request ignored.",
                     self.device_id,
                 )
-                # Don't update state - this is a read-only switch
                 return
             
             if is_zigbee:
-                # Get Zigbee coordinator from hass data
                 zigbee_coordinator = None
                 for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
                     if isinstance(data, dict) and "zigbee_coordinator" in data:
@@ -195,32 +187,27 @@ class GemnsSwitch(SwitchEntity):
                         break
                 
                 if zigbee_coordinator:
-                    # Get Zigbee device ID
                     zigbee_id = self.device.get("zigbee_id")
                     if zigbee_id is None:
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    # Send Zigbee serial command
                     await zigbee_coordinator.send_control_command(
                         zigbee_id, ZIGBEE_DEVICE_SWITCH, True
                     )
                 else:
                     _LOGGER.error("Zigbee coordinator not available")
                     return
-            else:
-                # Handle color mode for light switches
-                if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
+                else:
+                    if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
                     await self._turn_on_light(**kwargs)
                 else:
                     await self._turn_on_switch()
 
-            # Update device state in device manager
             if self.device_id in self.device_manager.devices:
                 self.device_manager.devices[self.device_id]["properties"]["switch_state"] = True
                 self.device_manager.devices[self.device_id]["status"] = "connected"
 
-            # Update local state
             self._attr_is_on = True
             self._just_controlled = True
             self.async_write_ha_state()
@@ -231,21 +218,17 @@ class GemnsSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
         try:
-            # Check if this is a Zigbee device
             is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
             device_category = self.device.get("category")
             
-            # For Zigbee switches we treat them as input-only (status), not controllable
             if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
                 _LOGGER.warning(
                     "Zigbee switch %s is read-only (status only). Control request ignored.",
                     self.device_id,
                 )
-                # Don't update state - this is a read-only switch
                 return
             
             if is_zigbee:
-                # Get Zigbee coordinator from hass data
                 zigbee_coordinator = None
                 for entry_id, data in self.hass.data.get(DOMAIN, {}).items():
                     if isinstance(data, dict) and "zigbee_coordinator" in data:
@@ -253,13 +236,11 @@ class GemnsSwitch(SwitchEntity):
                         break
                 
                 if zigbee_coordinator:
-                    # Get Zigbee device ID
                     zigbee_id = self.device.get("zigbee_id")
                     if zigbee_id is None:
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    # Send Zigbee serial command
                     await zigbee_coordinator.send_control_command(
                         zigbee_id, ZIGBEE_DEVICE_SWITCH, False
                     )
@@ -267,7 +248,6 @@ class GemnsSwitch(SwitchEntity):
                     _LOGGER.error("Zigbee coordinator not available")
                     return
             else:
-                # Send turn off command
                 turn_off_message = {
                     "command": "turn_off",
                     "device_id": self.device_id,
@@ -279,12 +259,10 @@ class GemnsSwitch(SwitchEntity):
                     json.dumps(turn_off_message)
                 )
 
-            # Update device state in device manager
             if self.device_id in self.device_manager.devices:
                 self.device_manager.devices[self.device_id]["properties"]["switch_state"] = False
                 self.device_manager.devices[self.device_id]["status"] = "connected"
 
-            # Update local state
             self._attr_is_on = False
             self._just_controlled = True
             self.async_write_ha_state()
@@ -382,19 +360,15 @@ class GemnsSwitch(SwitchEntity):
 
     def _handle_device_update(self, data):
         """Handle device updates."""
-        # Check if this update is for our device
         if isinstance(data, dict) and data.get("device_id") == self.device_id:
-            # Preserve current switch state if it exists
             current_state = self._attr_is_on
             self.device = data
             self._update_state()
 
-            # If we just turned the switch on/off, preserve that state
             if hasattr(self, '_just_controlled') and self._just_controlled:
                 self._attr_is_on = current_state
                 self._just_controlled = False
 
-            # Schedule the state write in the main event loop
             self.hass.loop.call_soon_threadsafe(
                 lambda: self.hass.async_create_task(self._async_write_state())
             )
@@ -405,7 +379,6 @@ class GemnsSwitch(SwitchEntity):
 
     async def async_update(self) -> None:
         """Update switch state."""
-        # Get latest device data
         updated_device = self.device_manager.get_device(self.device_id)
         if updated_device:
             self.device = updated_device

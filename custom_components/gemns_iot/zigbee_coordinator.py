@@ -65,6 +65,14 @@ class ZigbeeCommandParser:
         match = re.match(pattern_new, line_suffix)
         
         if match and match.group(1) == ZIGBEE_CMD_STATE:
+            command = match.group(1)
+            device_type_str = match.group(2)
+            length = int(match.group(3))
+            src_id = int(match.group(4)) & 0xFFFFFFFF
+            device_type_enum = int(match.group(5))
+            cmd_type = int(match.group(6))
+            brightness = match.group(7) if match.group(7) else None
+            
             if device_type_str == "sw":
                 device_type_str = ZIGBEE_DEVICE_SWITCH
                 _LOGGER.debug("Converted 'sw' to 'switch'")

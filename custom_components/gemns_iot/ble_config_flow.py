@@ -89,8 +89,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(address)
             self._abort_if_unique_id_configured()
 
-            from homeassistant.config_entries import async_entries_for_domain
-            existing_entries = async_entries_for_domain(self.hass, DOMAIN)
+            existing_entries = self.hass.config_entries.async_entries(DOMAIN)
             for entry in existing_entries:
                 entry_address = entry.data.get(CONF_ADDRESS, "").upper()
                 if entry_address == address and entry_address != "00:00:00:00:00:00":

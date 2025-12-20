@@ -317,8 +317,7 @@ class GemnsBluetoothProcessorCoordinator(
 
             _LOGGER.info("Found %d total Bluetooth devices", len(discovered_devices))
             
-            from homeassistant.config_entries import async_entries_for_domain
-            existing_entries = async_entries_for_domain(self.hass, "gemns")
+            existing_entries = self.hass.config_entries.async_entries("gemns")
             configured_addresses = set()
             for entry in existing_entries:
                 entry_address = entry.data.get(CONF_ADDRESS)

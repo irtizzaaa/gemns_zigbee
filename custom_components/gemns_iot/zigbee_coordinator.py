@@ -534,7 +534,8 @@ class ZigbeeCoordinator:
         elif device_type == ZIGBEE_DEVICE_SWITCH:
             if cmd_type is not None:
                 device_data["properties"]["switch_state"] = (cmd_type == 1 or cmd_type == 3)
-                _LOGGER.info("Zigbee switch %d state: %s (cmd_type=%d)", device_id, "on" if (cmd_type == 1 or cmd_type == 3) else "off", cmd_type)
+                device_data["properties"]["cmd_type"] = cmd_type
+                _LOGGER.info("Zigbee switch %d state: %s (cmd_type=%d)", device_id, "ON" if cmd_type == 3 else ("on" if (cmd_type == 1 or cmd_type == 3) else "off"), cmd_type)
             else:
                 device_data["properties"]["switch_state"] = True
                 _LOGGER.info("Zigbee switch %d pressed (no cmd_type)", device_id)

@@ -156,6 +156,8 @@ class GemnsSwitch(SwitchEntity):
         if device_type == DEVICE_TYPE_ZIGBEE and device_category == DEVICE_CATEGORY_SWITCH:
             self._attr_assumed_state = False
             self._attr_icon = "mdi:gesture-tap-button"
+            # Make Zigbee switches read-only
+            self._attr_entity_registry_enabled_default = True
         if device_category == DEVICE_CATEGORY_LIGHT:
             self._attr_device_class = "light"
             self._attr_icon = "mdi:lightbulb"
@@ -203,6 +205,22 @@ class GemnsSwitch(SwitchEntity):
             self._attr_available = True
         else:
             self._attr_available = False
+    
+    @property
+    def state(self) -> str:
+        """Return the state of the switch."""
+        if not self.available:
+            return "unavailable"
+        
+        properties = self.device.get("properties", {})
+        cmd_type = properties.get("cmd_type")
+        
+        if cmd_type == 3:
+            return "ON"
+        elif self._attr_is_on:
+            return "on"
+        else:
+            return "off"
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
@@ -264,6 +282,8 @@ class GemnsSwitch(SwitchEntity):
                     "Zigbee switch %s is read-only (status only). Control request ignored.",
                     self.device_id,
                 )
+                return
+            if not self.hass:
                 return
             
             if is_zigbee:
@@ -378,10 +398,19 @@ class GemnsSwitch(SwitchEntity):
         if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
             properties = self.device.get("properties", {})
             supports_brightness = properties.get("supports_brightness", False)
+            cmd_type = properties.get("cmd_type")
+            if cmd_type is not None:
+                attributes["cmd_type"] = cmd_type
             if supports_brightness:
                 brightness = getattr(self, '_attr_brightness', None)
+                if brightness is None:
+                    brightness = properties.get("brightness")
                 if brightness is not None:
                     attributes["brightness"] = brightness
+                    attributes["brightness_pct"] = int((brightness / 255) * 100)
+                else:
+                    attributes["brightness"] = 0
+                    attributes["brightness_pct"] = 0
                 attributes["supports_brightness"] = True
 
         if self.device.get("category") == DEVICE_CATEGORY_LIGHT:

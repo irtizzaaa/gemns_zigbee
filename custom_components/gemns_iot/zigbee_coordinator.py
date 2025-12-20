@@ -61,22 +61,37 @@ class ZigbeeCommandParser:
         line_suffix = line[len(ZIGBEE_CMD_PREFIX):].strip()
         _LOGGER.debug("Command suffix after prefix: %s", repr(line_suffix))
         
-        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
+        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?(?:\s+(\d+))?'
         match = re.match(pattern_new, line_suffix)
         
         if match and match.group(1) == ZIGBEE_CMD_STATE:
             command = match.group(1)
             device_type_str = match.group(2)
-            length = int(match.group(3))
+            length = int(match.group(3))  # PL (payload length)
             src_id = int(match.group(4)) & 0xFFFFFFFF
-            state_value = int(match.group(5))
-            brightness = match.group(6) if match.group(6) else None
+            device_type_enum = int(match.group(5))
+            state_value = int(match.group(6)) if match.group(6) else None
+            
+            # Based on payload length (PL):
+            # Format: $AT+state <device_type> <PL> <src_id> <device_type_enum> <state> [<brightness>]
+            # If PL == 4: brightness is at group 7 (PL+3 in 1-indexed groups)
+            # If PL == 3: no brightness (only 6 groups total)
+            if length == 4:
+                # Has brightness at group 7
+                brightness = match.group(7) if match.group(7) else None
+                supports_brightness = True
+            elif length == 3:
+                # No brightness
+                brightness = None
+                supports_brightness = False
+            else:
+                brightness = None
+                supports_brightness = False
             
             if device_type_str == "sw":
                 device_type_str = ZIGBEE_DEVICE_SWITCH
                 _LOGGER.debug("Converted 'sw' to 'switch'")
             
-            supports_brightness = (length == 4)
             cmd_type = state_value
             
             _LOGGER.debug(

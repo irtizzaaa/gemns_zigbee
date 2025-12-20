@@ -24,7 +24,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Signal for device updates
 SIGNAL_DEVICE_ADDED = f"{DOMAIN}_device_added"
 SIGNAL_DEVICE_REMOVED = f"{DOMAIN}_device_removed"
 
@@ -40,26 +39,21 @@ class GemnsDeviceManager:
         self._subscribers = {}
         self._mqtt_client = None
         self._created_entities = set()
-        # Simple persistence file for devices
         self._storage_path = self.hass.config.path(f".{DOMAIN}_devices.json")
 
     async def start(self):
         """Start the device manager."""
-        # Load devices from storage on startup so entities can be recreated
         await self._load_devices()
-        # Subscribe to MQTT topics only if MQTT broker is configured
         if self.config.get(CONF_MQTT_BROKER):
             await self._subscribe_to_mqtt()
         else:
             _LOGGER.info("MQTT broker not configured, skipping MQTT subscription")
 
-        # Start device discovery
         discovery_task = asyncio.create_task(self._device_discovery_loop())
         self._discovery_task = discovery_task
 
     async def stop(self):
         """Stop the device manager."""
-        # Cleanup tasks
         await self._save_devices()
 
     async def add_device(self, device_data: dict[str, Any]) -> bool:
@@ -127,12 +121,10 @@ class GemnsDeviceManager:
     async def _subscribe_to_mqtt(self):
         """Subscribe to relevant MQTT topics."""
         try:
-            # Check if MQTT is available
             if not await mqtt.async_wait_for_mqtt_client(self.hass):
                 _LOGGER.warning("MQTT client not available, skipping MQTT subscription")
                 return
 
-            # Subscribe to MQTT topics for device updates (removed dongle topics)
             await async_subscribe(
                 self.hass,
                 MQTT_TOPIC_STATUS,
@@ -169,7 +161,6 @@ class GemnsDeviceManager:
             # Update device status
             device_id = data.get("device_id")
             if device_id:
-                # Ensure device has all required fields
                 if "name" not in data:
                     data["name"] = device_id
                 if "last_seen" not in data:
@@ -180,10 +171,8 @@ class GemnsDeviceManager:
                 self.devices[device_id] = data
                 _LOGGER.info("Updated device %s with status: %s", device_id, data.get('status'))
 
-                # Persist devices on update
                 self.hass.async_create_task(self._save_devices())
 
-                # Schedule the dispatcher call in the main event loop
                 self.hass.loop.call_soon_threadsafe(
                     lambda: self.hass.async_create_task(
                         self._async_notify_device_update(data)
@@ -199,12 +188,10 @@ class GemnsDeviceManager:
             data = json.loads(msg.payload)
             _LOGGER.info("Control message received: %s", data)
 
-            # Handle different control actions
             action = data.get("action")
             if action == "toggle_zigbee":
                 enabled = data.get("enabled", False)
                 _LOGGER.info("Zigbee toggle command received: %s", enabled)
-                # Update Zigbee status in config
                 self.config["enable_zigbee"] = enabled
 
         except (ValueError, KeyError, AttributeError, TypeError) as e:
@@ -222,11 +209,9 @@ class GemnsDeviceManager:
         """Notify device updates."""
         async_dispatcher_send(self.hass, SIGNAL_DEVICE_UPDATED, device_data)
 
-        # Check if this is a new device that needs entity creation
         device_id = device_data.get("device_id")
         if device_id and device_id not in self._created_entities:
             self._created_entities.add(device_id)
-            # Signal that a new device was added
             async_dispatcher_send(self.hass, SIGNAL_DEVICE_ADDED, device_data)
 
     async def _async_notify_device_added(self, device_data):
@@ -245,10 +230,7 @@ class GemnsDeviceManager:
         """Main device discovery loop."""
         while True:
             try:
-                # Update device statuses
                 await self._update_device_statuses()
-
-                # Wait before next scan
                 await asyncio.sleep(30)
 
             except (ValueError, KeyError, AttributeError, TypeError) as e:
@@ -258,10 +240,8 @@ class GemnsDeviceManager:
     async def _update_device_statuses(self):
         """Update status of all devices."""
         for device in self.devices.values():
-            # Simulate some devices going offline
             if device.get("status") == "connected":
-                # Randomly set some devices to offline for testing
-                if random.random() < 0.1:  # 10% chance
+                if random.random() < 0.1:
                     device["status"] = "offline"
                     device["last_seen"] = datetime.now(UTC).isoformat()
                     self.hass.async_create_task(
@@ -317,7 +297,6 @@ class GemnsDeviceManager:
             self._subscribers[device_id] = []
         self._subscribers[device_id].append(callback)
 
-        # Return unsubscribe function
         def unsubscribe():
             if device_id in self._subscribers:
                 self._subscribers[device_id].remove(callback)
@@ -329,7 +308,6 @@ class GemnsDeviceManager:
             self._subscribers["general"] = []
         self._subscribers["general"].append(callback)
 
-        # Return unsubscribe function
         def unsubscribe():
             if "general" in self._subscribers:
                 self._subscribers["general"].remove(callback)

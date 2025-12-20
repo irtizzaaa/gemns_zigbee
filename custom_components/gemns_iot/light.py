@@ -104,10 +104,10 @@ async def async_setup_entry(
 
             if not existing_entry and not existing_entity:
                 if _add_entities_callback:
-                    new_entity = GemnsLight(device_manager, device_data, hass)
-                    _entities.append(new_entity)
-                    _add_entities_callback([new_entity])
-                    _LOGGER.info("Created new light entity for device: %s", device_id)
+                new_entity = GemnsLight(device_manager, device_data, hass)
+                _entities.append(new_entity)
+                _add_entities_callback([new_entity])
+                _LOGGER.info("Created new light entity for device: %s", device_id)
                 else:
                     _LOGGER.error("Cannot create light entity: _add_entities_callback is None")
             else:
@@ -155,9 +155,9 @@ class GemnsLight(LightEntity):
             
             if supports_brightness:
                 # Brightness-capable bulb (length == 4)
-                self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-                self._attr_color_mode = ColorMode.BRIGHTNESS
-                self._attr_brightness = 255
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_brightness = 255
             else:
                 # Simple on/off bulb (length == 3, no brightness)
                 self._attr_supported_color_modes = {ColorMode.ONOFF}
@@ -237,14 +237,14 @@ class GemnsLight(LightEntity):
                     # For Zigbee bulbs, only send brightness if supported
                     brightness = None
                     if supports_brightness:
-                        if ATTR_BRIGHTNESS in kwargs:
-                            brightness = kwargs[ATTR_BRIGHTNESS]
-                            self._attr_brightness = brightness
-                        else:
-                            brightness = self._attr_brightness
-                        
-                        if brightness is not None:
-                            brightness = max(0, min(255, int(brightness)))
+                    if ATTR_BRIGHTNESS in kwargs:
+                        brightness = kwargs[ATTR_BRIGHTNESS]
+                        self._attr_brightness = brightness
+                    else:
+                        brightness = self._attr_brightness
+                    
+                    if brightness is not None:
+                        brightness = max(0, min(255, int(brightness)))
                     
                     await zigbee_coordinator.send_control_command(
                         zigbee_id, ZIGBEE_DEVICE_BULB, True, brightness

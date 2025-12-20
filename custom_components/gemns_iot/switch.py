@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
     SIGNAL_DEVICE_ADDED,
     SIGNAL_DEVICE_UPDATED,
+    ZIGBEE_DEVICE_BULB,
     ZIGBEE_DEVICE_SWITCH,
 )
 
@@ -49,9 +50,14 @@ async def async_setup_entry(
         return
 
     # Get all switch devices
+    # For Zigbee devices, only include actual switches (not bulbs - bulbs are handled by light platform)
     switch_devices = []
     switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_SWITCH))
-    switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_LIGHT))
+    # Only add lights for non-Zigbee devices (Zigbee bulbs should only be light entities)
+    all_light_devices = device_manager.get_devices_by_category(DEVICE_CATEGORY_LIGHT)
+    for light_device in all_light_devices:
+        if light_device.get("device_type") != DEVICE_TYPE_ZIGBEE:
+            switch_devices.append(light_device)
     switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_DOOR))
     switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_TOGGLE))
 
@@ -89,6 +95,11 @@ async def async_setup_entry(
         """Handle new device added."""
         _LOGGER.info("handle_new_device called for device: %s, category: %s", device_data.get("device_id"), device_data.get("category"))
         category = device_data.get("category")
+        device_type = device_data.get("device_type")
+        # Don't create switch entities for Zigbee bulbs (they should only be light entities)
+        if category == DEVICE_CATEGORY_LIGHT and device_type == DEVICE_TYPE_ZIGBEE:
+            _LOGGER.debug("Skipping Zigbee bulb %s - should only be created as light entity", device_data.get("device_id"))
+            return
         if category in [DEVICE_CATEGORY_SWITCH, DEVICE_CATEGORY_LIGHT, DEVICE_CATEGORY_DOOR, DEVICE_CATEGORY_TOGGLE]:
             device_id = device_data.get("device_id")
             unique_id = f"{DOMAIN}_{device_id}"
@@ -248,8 +259,11 @@ class GemnsSwitch(SwitchEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
+                    # Use correct device type based on category
+                    device_type = ZIGBEE_DEVICE_BULB if device_category == DEVICE_CATEGORY_LIGHT else ZIGBEE_DEVICE_SWITCH
+                    brightness = kwargs.get("brightness") if device_category == DEVICE_CATEGORY_LIGHT else None
                     await zigbee_coordinator.send_control_command(
-                        zigbee_id, ZIGBEE_DEVICE_SWITCH, True
+                        zigbee_id, device_type, True, brightness
                     )
                 else:
                     _LOGGER.error("Zigbee coordinator not available")
@@ -299,8 +313,10 @@ class GemnsSwitch(SwitchEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
+                    # Use correct device type based on category
+                    device_type = ZIGBEE_DEVICE_BULB if device_category == DEVICE_CATEGORY_LIGHT else ZIGBEE_DEVICE_SWITCH
                     await zigbee_coordinator.send_control_command(
-                        zigbee_id, ZIGBEE_DEVICE_SWITCH, False
+                        zigbee_id, device_type, False, None
                     )
                 else:
                     _LOGGER.error("Zigbee coordinator not available")

@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -39,7 +40,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Gemns™ IoT switches from a config entry."""
-    # Store the callback for dynamic entity creation
+    global _add_entities_callback
     _add_entities_callback = async_add_entities
 
     # Get device manager
@@ -86,18 +87,30 @@ async def async_setup_entry(
     # Listen for new devices
     async def handle_new_device(device_data):
         """Handle new device added."""
+        _LOGGER.info("handle_new_device called for device: %s, category: %s", device_data.get("device_id"), device_data.get("category"))
         category = device_data.get("category")
         if category in [DEVICE_CATEGORY_SWITCH, DEVICE_CATEGORY_LIGHT, DEVICE_CATEGORY_DOOR, DEVICE_CATEGORY_TOGGLE]:
-            # Check if entity already exists
             device_id = device_data.get("device_id")
+            unique_id = f"{DOMAIN}_{device_id}"
+            
+            # Check if entity exists in entity registry
+            entity_registry = er.async_get(hass)
+            existing_entry = entity_registry.async_get(unique_id)
+            
+            # Also check our local list
             existing_entity = next((e for e in _entities if e.device_id == device_id), None)
 
-            if not existing_entity:
-                # Create new entity
-                new_entity = GemnsSwitch(device_manager, device_data, hass)
-                _entities.append(new_entity)
-                _add_entities_callback([new_entity])
-                _LOGGER.info("Created new switch entity for device: %s", device_id)
+            if not existing_entry and not existing_entity:
+                if _add_entities_callback:
+                    new_entity = GemnsSwitch(device_manager, device_data, hass)
+                    _entities.append(new_entity)
+                    _add_entities_callback([new_entity])
+                    _LOGGER.info("Created new switch entity for device: %s", device_id)
+                else:
+                    _LOGGER.error("Cannot create switch entity: _add_entities_callback is None")
+            else:
+                _LOGGER.debug("Switch entity already exists for device: %s (registry: %s, local: %s), skipping duplicate", 
+                             device_id, existing_entry is not None, existing_entity is not None)
 
     # Connect to dispatcher
     async_dispatcher_connect(hass, SIGNAL_DEVICE_ADDED, handle_new_device)

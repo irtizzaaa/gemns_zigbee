@@ -467,12 +467,23 @@ class ZigbeeCoordinator:
             return
         
         device_manager_id = f"zigbee_{device_type}_{device_id}"
+        _LOGGER.info("Processing state update: device_id=%d, device_type=%s, device_manager_id=%s", device_id, device_type, device_manager_id)
+        _LOGGER.info("Checking _devices: device_id %d in _devices: %s", device_id, device_id in self._devices)
+        _LOGGER.info("Checking device_manager.devices: %s in devices: %s (total: %d)", device_manager_id, device_manager_id in self.device_manager.devices, len(self.device_manager.devices))
+        
         device_data = self._devices.get(device_id)
         if not device_data:
             if device_manager_id in self.device_manager.devices:
                 device_data = self.device_manager.devices[device_manager_id]
                 self._devices[device_id] = device_data
-                _LOGGER.debug("Found existing device in device_manager: %s", device_manager_id)
+                _LOGGER.info("Found existing device in device_manager: %s (zigbee_id: %d)", device_manager_id, device_id)
+                # Check if entity creation signal was already sent
+                if device_manager_id not in self.device_manager._created_entities:
+                    _LOGGER.info("Existing device %s doesn't have entity yet, sending SIGNAL_DEVICE_ADDED", device_manager_id)
+                    self.device_manager._created_entities.add(device_manager_id)
+                    self.hass.async_create_task(
+                        self.device_manager._async_notify_device_added(device_data)
+                    )
             else:
                 _LOGGER.info(
                     "State update for unknown device ID: %d (%s). Creating device from state.",
@@ -498,7 +509,13 @@ class ZigbeeCoordinator:
                     },
                 }
                 self._devices[device_id] = device_data
-                await self.device_manager.add_device(device_data)
+                _LOGGER.info("Adding device to device_manager: %s (zigbee_id: %d, category: %s)", device_manager_id, device_id, category)
+                result = await self.device_manager.add_device(device_data)
+                _LOGGER.info("Device add result: %s for device_id: %s", result, device_manager_id)
+                if result:
+                    _LOGGER.info("Device successfully added, checking if in device_manager: %s", device_manager_id in self.device_manager.devices)
+                    if device_manager_id not in self.device_manager.devices:
+                        _LOGGER.error("Device %s was not added to device_manager.devices!", device_manager_id)
         else:
             # Update supports_brightness property if not already set
             if "supports_brightness" not in device_data.get("properties", {}):

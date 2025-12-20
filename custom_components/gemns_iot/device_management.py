@@ -69,32 +69,40 @@ class GemnsDeviceManager:
         except (ValueError, KeyError, AttributeError, TypeError) as e:
             _LOGGER.error("Error adding device: %s", e)
             return False
-        else:
-            # Create device entry
-            device = {
-                "device_id": device_id,
-                "device_type": device_data.get("device_type", "ble"),
-                "category": device_data.get("category", "sensor"),
-                "name": device_data.get("name", device_id),
-                "ble_discovery_mode": device_data.get("ble_discovery_mode", "v0_manual"),
-                "status": device_data.get("status", "disconnected"),
-                "last_seen": datetime.now(UTC).isoformat(),
-                "created_manually": True,
-                "properties": {}
-            }
-
-            self.devices[device_id] = device
-
-            # Persist devices
+        
+        if device_id in self.devices:
+            _LOGGER.debug("Device %s already exists, updating instead", device_id)
+            self.devices[device_id].update(device_data)
+            self.devices[device_id]["last_seen"] = datetime.now(UTC).isoformat()
             await self._save_devices()
-
-            # Notify subscribers - this is called from async context, so it's safe
             self.hass.async_create_task(
-                self._async_notify_device_added(device)
+                self._async_notify_device_update(self.devices[device_id])
             )
-
-            _LOGGER.info("Device added: %s", device_id)
             return True
+        
+        device = {
+            "device_id": device_id,
+            "device_type": device_data.get("device_type", "ble"),
+            "category": device_data.get("category", "sensor"),
+            "name": device_data.get("name", device_id),
+            "zigbee_id": device_data.get("zigbee_id"),
+            "ble_discovery_mode": device_data.get("ble_discovery_mode", "v0_manual"),
+            "status": device_data.get("status", "disconnected"),
+            "last_seen": datetime.now(UTC).isoformat(),
+            "created_manually": device_data.get("created_manually", False),
+            "properties": device_data.get("properties", {}).copy()
+        }
+
+        self.devices[device_id] = device
+
+        await self._save_devices()
+
+        self.hass.async_create_task(
+            self._async_notify_device_added(device)
+        )
+
+        _LOGGER.info("Device added: %s (category: %s, type: %s)", device_id, device.get("category"), device.get("device_type"))
+        return True
 
     def get_device(self, device_id: str) -> dict[str, Any] | None:
         """Get a device by ID."""
@@ -223,6 +231,9 @@ class GemnsDeviceManager:
 
     async def _async_notify_device_added(self, device_data):
         """Notify device added."""
+        device_id = device_data.get("device_id")
+        category = device_data.get("category")
+        _LOGGER.info("Sending SIGNAL_DEVICE_ADDED for device: %s, category: %s", device_id, category)
         async_dispatcher_send(self.hass, SIGNAL_DEVICE_ADDED, device_data)
 
     @property
@@ -273,6 +284,9 @@ class GemnsDeviceManager:
                 self.devices = data
                 _LOGGER.info("Loaded %d devices from storage", len(self.devices))
                 for device in self.devices.values():
+                    device_id = device.get("device_id")
+                    if device_id:
+                        self._created_entities.add(device_id)
                     await self._async_notify_device_added(device)
             else:
                 _LOGGER.warning("Device storage file format invalid, expected dict")

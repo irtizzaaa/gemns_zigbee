@@ -61,7 +61,7 @@ class ZigbeeCommandParser:
         line_suffix = line[len(ZIGBEE_CMD_PREFIX):].strip()
         _LOGGER.debug("Command suffix after prefix: %s", repr(line_suffix))
         
-        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
+        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
         match = re.match(pattern_new, line_suffix)
         
         if match and match.group(1) == ZIGBEE_CMD_STATE:
@@ -69,25 +69,24 @@ class ZigbeeCommandParser:
             device_type_str = match.group(2)
             length = int(match.group(3))
             src_id = int(match.group(4)) & 0xFFFFFFFF
-            device_type_enum = int(match.group(5))
-            cmd_type = int(match.group(6))
-            brightness = match.group(7) if match.group(7) else None
+            state_value = int(match.group(5))
+            brightness = match.group(6) if match.group(6) else None
             
             if device_type_str == "sw":
                 device_type_str = ZIGBEE_DEVICE_SWITCH
                 _LOGGER.debug("Converted 'sw' to 'switch'")
             
             supports_brightness = (length == 4)
+            cmd_type = state_value
             
             _LOGGER.debug(
                 "Parsed new STATE format: command=%s, device_type_str=%s, length=%d, "
-                "src_id=%d, device_type_enum=%d, cmd_type=%s, brightness=%s, supports_brightness=%s",
+                "src_id=%d, state=%d, brightness=%s, supports_brightness=%s",
                 command,
                 device_type_str,
                 length,
                 src_id,
-                device_type_enum,
-                cmd_type,
+                state_value,
                 brightness,
                 supports_brightness,
             )
@@ -95,7 +94,6 @@ class ZigbeeCommandParser:
             result = {
                 "command": command,
                 "device_type": device_type_str,
-                "device_type_enum": device_type_enum,
                 "length": length,
                 "device_id": src_id,
                 "cmd_type": cmd_type,
@@ -162,22 +160,20 @@ class ZigbeeCommandParser:
             return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code}{SERIAL_LINE_ENDING}"
         
         elif command == ZIGBEE_CMD_STATE:
-            device_type_enum = 0
+            state_value = 1 if state else 0
             
             if brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 length = 4
-                cmd_type = 3
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {device_type_enum} {cmd_type} {brightness}{SERIAL_LINE_ENDING}"
+                    f"{device_id} {state_value} {brightness}{SERIAL_LINE_ENDING}"
                 )
             else:
                 length = 3
-                cmd_type = 1 if state else 0
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {device_type_enum} {cmd_type}{SERIAL_LINE_ENDING}"
+                    f"{device_id} {state_value}{SERIAL_LINE_ENDING}"
                 )
         
         return ""

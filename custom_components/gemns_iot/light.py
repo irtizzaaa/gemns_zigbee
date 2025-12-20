@@ -233,17 +233,15 @@ class GemnsLight(LightEntity):
                     properties = self.device.get("properties", {})
                     supports_brightness = properties.get("supports_brightness", True)
                     
-                    # For Zigbee bulbs, only send brightness if supported
-                    brightness = None
                     if supports_brightness:
                         if ATTR_BRIGHTNESS in kwargs:
                             brightness = kwargs[ATTR_BRIGHTNESS]
                             self._attr_brightness = brightness
                         else:
-                            brightness = self._attr_brightness
-                    
-                    if brightness is not None:
+                            brightness = self._attr_brightness if self._attr_brightness is not None else 255
                         brightness = max(0, min(255, int(brightness)))
+                    else:
+                        brightness = None
                     
                     await zigbee_coordinator.send_control_command(
                         zigbee_id, ZIGBEE_DEVICE_BULB, True, brightness

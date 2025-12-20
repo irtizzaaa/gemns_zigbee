@@ -54,12 +54,31 @@ async def async_setup_entry(
     # Get all light devices
     light_devices = device_manager.get_devices_by_category(DEVICE_CATEGORY_LIGHT)
 
-    # Create light entities
+    # Create light entities, avoiding duplicates
     entities = []
+    seen_device_ids = set()
     for device in light_devices:
+        device_id = device.get("device_id")
+        unique_id = f"{DOMAIN}_{device_id}"
+        
+        # Skip if we've already seen this device_id or unique_id
+        if device_id in seen_device_ids:
+            _LOGGER.debug("Skipping duplicate light device during setup: %s", device_id)
+            continue
+        
+        # Check if entity already exists in _entities
+        existing_entity = next(
+            (e for e in _entities if e.device_id == device_id or e.unique_id == unique_id), 
+            None
+        )
+        if existing_entity:
+            _LOGGER.debug("Light entity already exists for device: %s, skipping", device_id)
+            continue
+        
         light_entity = GemnsLight(device_manager, device, hass)
         entities.append(light_entity)
         _entities.append(light_entity)
+        seen_device_ids.add(device_id)
 
     if entities:
         async_add_entities(entities)
@@ -68,9 +87,13 @@ async def async_setup_entry(
     async def handle_new_device(device_data):
         """Handle new device added."""
         if device_data.get("category") == DEVICE_CATEGORY_LIGHT:
-            # Check if entity already exists
+            # Check if entity already exists by device_id or unique_id
             device_id = device_data.get("device_id")
-            existing_entity = next((e for e in _entities if e.device_id == device_id), None)
+            unique_id = f"{DOMAIN}_{device_id}"
+            existing_entity = next(
+                (e for e in _entities if e.device_id == device_id or e.unique_id == unique_id), 
+                None
+            )
 
             if not existing_entity:
                 # Create new entity
@@ -78,6 +101,8 @@ async def async_setup_entry(
                 _entities.append(new_entity)
                 _add_entities_callback([new_entity])
                 _LOGGER.info("Created new light entity for device: %s", device_id)
+            else:
+                _LOGGER.debug("Light entity already exists for device: %s, skipping duplicate", device_id)
 
     # Connect to dispatcher
     async_dispatcher_connect(hass, SIGNAL_DEVICE_ADDED, handle_new_device)
@@ -113,11 +138,21 @@ class GemnsLight(LightEntity):
 
     def _set_light_properties(self):
         """Set light properties based on device capabilities."""
-        # For Zigbee bulbs we only support brightness (no hue / color temp in UI)
+        # For Zigbee bulbs, check if brightness is supported
         if self.device.get("device_type") == DEVICE_TYPE_ZIGBEE:
-            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-            self._attr_color_mode = ColorMode.BRIGHTNESS
-            self._attr_brightness = 255
+            properties = self.device.get("properties", {})
+            supports_brightness = properties.get("supports_brightness", True)  # Default to True for backward compatibility
+            
+            if supports_brightness:
+                # Brightness-capable bulb (length == 4)
+                self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+                self._attr_color_mode = ColorMode.BRIGHTNESS
+                self._attr_brightness = 255
+            else:
+                # Simple on/off bulb (length == 3, no brightness)
+                self._attr_supported_color_modes = {ColorMode.ONOFF}
+                self._attr_color_mode = ColorMode.ONOFF
+                self._attr_brightness = None
         else:
             # Default light properties for non‑Zigbee lights
             self._attr_supported_color_modes = {
@@ -137,31 +172,25 @@ class GemnsLight(LightEntity):
         status = self.device.get("status", DEVICE_STATUS_OFFLINE)
 
         if status == DEVICE_STATUS_CONNECTED:
-            # Get light state from device properties
             properties = self.device.get("properties", {})
             light_state = properties.get("light_state", False)
             self._attr_is_on = bool(light_state)
 
-            # Get brightness if available
             brightness = properties.get("brightness")
             if brightness is not None:
                 self._attr_brightness = brightness
 
-            # Get RGB color if available
             rgb_color = properties.get("rgb_color")
             if rgb_color:
                 self._attr_rgb_color = tuple(rgb_color)
 
-            # Get color temperature if available
             color_temp = properties.get("color_temp")
             if color_temp is not None:
                 self._attr_color_temp = color_temp
 
         else:
-            # Device is offline
             self._attr_is_on = False
 
-        # Update available state - be more lenient for lights
         if status == DEVICE_STATUS_CONNECTED or self.device_id in self.device_manager.devices:
             self._attr_available = True
         else:
@@ -191,15 +220,21 @@ class GemnsLight(LightEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    # For Zigbee bulbs we only consider brightness (no hue)
-                    if ATTR_BRIGHTNESS in kwargs:
-                        brightness = kwargs[ATTR_BRIGHTNESS]
-                        self._attr_brightness = brightness
-                    else:
-                        brightness = self._attr_brightness
+                    # Check if device supports brightness
+                    properties = self.device.get("properties", {})
+                    supports_brightness = properties.get("supports_brightness", True)
                     
-                    if brightness is not None:
-                        brightness = max(0, min(255, int(brightness)))
+                    # For Zigbee bulbs, only send brightness if supported
+                    brightness = None
+                    if supports_brightness:
+                        if ATTR_BRIGHTNESS in kwargs:
+                            brightness = kwargs[ATTR_BRIGHTNESS]
+                            self._attr_brightness = brightness
+                        else:
+                            brightness = self._attr_brightness
+                        
+                        if brightness is not None:
+                            brightness = max(0, min(255, int(brightness)))
                     
                     await zigbee_coordinator.send_control_command(
                         zigbee_id, ZIGBEE_DEVICE_BULB, True, brightness
@@ -375,16 +410,16 @@ class GemnsLight(LightEntity):
             current_brightness = self._attr_brightness
             current_color = self._attr_rgb_color
             self.device = data
+            
+            self._set_light_properties()
             self._update_state()
 
-            # If we just controlled the light, preserve that state
             if hasattr(self, '_just_controlled') and self._just_controlled:
                 self._attr_is_on = current_state
                 self._attr_brightness = current_brightness
                 self._attr_rgb_color = current_color
                 self._just_controlled = False
 
-            # Schedule the state write in the main event loop
             self.hass.loop.call_soon_threadsafe(
                 lambda: self.hass.async_create_task(self._async_write_state())
             )

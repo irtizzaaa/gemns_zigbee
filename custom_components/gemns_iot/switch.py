@@ -54,12 +54,31 @@ async def async_setup_entry(
     switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_DOOR))
     switch_devices.extend(device_manager.get_devices_by_category(DEVICE_CATEGORY_TOGGLE))
 
-    # Create switch entities
+    # Create switch entities, avoiding duplicates
     entities = []
+    seen_device_ids = set()
     for device in switch_devices:
+        device_id = device.get("device_id")
+        unique_id = f"{DOMAIN}_{device_id}"
+        
+        # Skip if we've already seen this device_id or unique_id
+        if device_id in seen_device_ids:
+            _LOGGER.debug("Skipping duplicate switch device during setup: %s", device_id)
+            continue
+        
+        # Check if entity already exists in _entities
+        existing_entity = next(
+            (e for e in _entities if e.device_id == device_id or e.unique_id == unique_id), 
+            None
+        )
+        if existing_entity:
+            _LOGGER.debug("Switch entity already exists for device: %s, skipping", device_id)
+            continue
+        
         switch_entity = GemnsSwitch(device_manager, device, hass)
         entities.append(switch_entity)
         _entities.append(switch_entity)
+        seen_device_ids.add(device_id)
 
     if entities:
         async_add_entities(entities)
@@ -96,6 +115,7 @@ class GemnsSwitch(SwitchEntity):
         self._attr_name = device.get("name", self.device_id)
         self._attr_unique_id = f"{DOMAIN}_{self.device_id}"
         self._attr_should_poll = False
+        self._attr_brightness = None  # Initialize brightness attribute
 
         # Set device info
         self._attr_device_info = DeviceInfo(
@@ -152,15 +172,20 @@ class GemnsSwitch(SwitchEntity):
         status = self.device.get("status", DEVICE_STATUS_OFFLINE)
 
         if status == DEVICE_STATUS_CONNECTED:
-            # Get switch state from device properties
             properties = self.device.get("properties", {})
             switch_state = properties.get("switch_state", False)
             self._attr_is_on = bool(switch_state)
+            
+            brightness = properties.get("brightness")
+            if brightness is not None:
+                self._attr_brightness = brightness
+            elif not hasattr(self, '_attr_brightness'):
+                self._attr_brightness = None
         else:
-            # Device is offline
             self._attr_is_on = False
+            if not hasattr(self, '_attr_brightness'):
+                self._attr_brightness = None
 
-        # Update available state - be more lenient for switches
         if status == DEVICE_STATUS_CONNECTED or self.device_id in self.device_manager.devices:
             self._attr_available = True
         else:
@@ -337,7 +362,15 @@ class GemnsSwitch(SwitchEntity):
             "read_only": is_read_only,
         }
 
-        # Add light-specific attributes
+        if is_zigbee and device_category == DEVICE_CATEGORY_SWITCH:
+            properties = self.device.get("properties", {})
+            supports_brightness = properties.get("supports_brightness", False)
+            if supports_brightness:
+                brightness = getattr(self, '_attr_brightness', None)
+                if brightness is not None:
+                    attributes["brightness"] = brightness
+                attributes["supports_brightness"] = True
+
         if self.device.get("category") == DEVICE_CATEGORY_LIGHT:
             attributes.update({
                 "color_mode": self._attr_color_mode,
@@ -364,8 +397,13 @@ class GemnsSwitch(SwitchEntity):
             current_state = self._attr_is_on
             self.device = data
             self._update_state()
-
-            if hasattr(self, '_just_controlled') and self._just_controlled:
+            
+            is_zigbee_switch = (
+                self.device.get("device_type") == DEVICE_TYPE_ZIGBEE and 
+                self.device.get("category") == DEVICE_CATEGORY_SWITCH
+            )
+            
+            if hasattr(self, '_just_controlled') and self._just_controlled and not is_zigbee_switch:
                 self._attr_is_on = current_state
                 self._just_controlled = False
 

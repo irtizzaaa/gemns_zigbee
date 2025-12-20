@@ -86,9 +86,21 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors={"base": "invalid_decryption_key_format"},
                 )
 
-            # Check if already configured
             await self.async_set_unique_id(address)
             self._abort_if_unique_id_configured()
+
+            from homeassistant.config_entries import async_entries_for_domain
+            existing_entries = async_entries_for_domain(self.hass, DOMAIN)
+            for entry in existing_entries:
+                entry_address = entry.data.get(CONF_ADDRESS, "").upper()
+                if entry_address == address and entry_address != "00:00:00:00:00:00":
+                    _LOGGER.warning("Device with MAC address %s is already configured (entry_id: %s)", 
+                                  address, entry.entry_id)
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=STEP_USER_DATA_SCHEMA,
+                        errors={"base": "already_configured"},
+                    )
 
             # Create the config entry
             return self.async_create_entry(
@@ -115,9 +127,18 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
         self, discovery_info: BluetoothServiceInfo
     ) -> FlowResult:
         """Handle the bluetooth discovery step - but we don't auto-configure."""
-        # We don't auto-configure devices anymore, just show them as available
-        await self.async_set_unique_id(discovery_info.address)
+        address_upper = discovery_info.address.upper()
+        await self.async_set_unique_id(address_upper)
         self._abort_if_unique_id_configured()
+
+        from homeassistant.config_entries import async_entries_for_domain
+        existing_entries = async_entries_for_domain(self.hass, DOMAIN)
+        for entry in existing_entries:
+            entry_address = entry.data.get(CONF_ADDRESS, "").upper()
+            if entry_address == address_upper and entry_address != "00:00:00:00:00:00":
+                _LOGGER.info("Device with MAC address %s is already configured (entry_id: %s), aborting discovery", 
+                           address_upper, entry.entry_id)
+                return self.async_abort(reason="already_configured")
 
         # Check if this looks like a Gemns™ IoT device
         if not self._is_gems_device(discovery_info):
@@ -127,7 +148,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
         device_type, device_name = self._extract_device_info_from_beacon(discovery_info)
 
         # Store the device info with extracted type
-        self._discovered_devices[discovery_info.address] = {
+        self._discovered_devices[address_upper] = {
             "discovery_info": discovery_info,
             "device_type": device_type,
             "device_name": device_name
@@ -224,6 +245,19 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
         discovery_info = device_info["discovery_info"]
         device_type = device_info.get("device_type", "unknown")
         device_name = device_info.get("device_name", "Gemns™ IoT Device")
+        address_upper = discovery_info.address.upper()
+
+        await self.async_set_unique_id(address_upper)
+        self._abort_if_unique_id_configured()
+
+        from homeassistant.config_entries import async_entries_for_domain
+        existing_entries = async_entries_for_domain(self.hass, DOMAIN)
+        for entry in existing_entries:
+            entry_address = entry.data.get(CONF_ADDRESS, "").upper()
+            if entry_address == address_upper and entry_address != "00:00:00:00:00:00":
+                _LOGGER.warning("Device with MAC address %s is already configured (entry_id: %s)", 
+                              address_upper, entry.entry_id)
+                return self.async_abort(reason="already_configured")
 
         # Map device type to sensor type
         device_type_map = {
@@ -242,7 +276,7 @@ class GemnsBluetoothConfigFlow(ConfigFlow, domain=DOMAIN):
             title=device_name,
             data={
                 CONF_NAME: device_name,
-                CONF_ADDRESS: discovery_info.address,
+                CONF_ADDRESS: address_upper,
                 CONF_DECRYPTION_KEY: user_input[CONF_DECRYPTION_KEY],
                 CONF_DEVICE_NAME: device_name,
                 CONF_DEVICE_TYPE: device_type,

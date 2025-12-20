@@ -61,44 +61,40 @@ class ZigbeeCommandParser:
         line_suffix = line[len(ZIGBEE_CMD_PREFIX):].strip()
         _LOGGER.debug("Command suffix after prefix: %s", repr(line_suffix))
         
-        # Newer STATE format (no device_type_code, optional brightness):
-        # +state <device_type> <length> <src_id> <cmd_type> [<brightness>]
-        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
+        pattern_new = r'\+(\w+)\s+(\w+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)(?:\s+(\d+))?'
         match = re.match(pattern_new, line_suffix)
         
         if match and match.group(1) == ZIGBEE_CMD_STATE:
-            _LOGGER.debug("Matched new format pattern for STATE command")
-            command = match.group(1)
-            device_type = match.group(2)
-            length = int(match.group(3))
-            src_id = int(match.group(4)) & 0xFFFFFFFF
-            cmd_type = int(match.group(5))
-            brightness = match.group(6) if match.group(6) else None
+            if device_type_str == "sw":
+                device_type_str = ZIGBEE_DEVICE_SWITCH
+                _LOGGER.debug("Converted 'sw' to 'switch'")
+            
+            supports_brightness = (length == 4)
             
             _LOGGER.debug(
-                "Parsed new STATE format: command=%s, device_type=%s, length=%d, "
-                "src_id=%d, cmd_type=%d, brightness=%s",
+                "Parsed new STATE format: command=%s, device_type_str=%s, length=%d, "
+                "src_id=%d, device_type_enum=%d, cmd_type=%s, brightness=%s, supports_brightness=%s",
                 command,
-                device_type,
+                device_type_str,
                 length,
                 src_id,
+                device_type_enum,
                 cmd_type,
                 brightness,
+                supports_brightness,
             )
-            
-            if device_type == "sw":
-                device_type = ZIGBEE_DEVICE_SWITCH
-                _LOGGER.debug("Converted 'sw' to 'switch'")
             
             result = {
                 "command": command,
-                "device_type": device_type,
+                "device_type": device_type_str,
+                "device_type_enum": device_type_enum,
                 "length": length,
                 "device_id": src_id,
                 "cmd_type": cmd_type,
+                "supports_brightness": supports_brightness,
             }
             
-            if brightness:
+            if supports_brightness and brightness:
                 result["brightness"] = max(0, min(255, int(brightness)))
                 _LOGGER.debug("Added brightness to result: %d", result["brightness"])
             
@@ -158,23 +154,22 @@ class ZigbeeCommandParser:
             return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code}{SERIAL_LINE_ENDING}"
         
         elif command == ZIGBEE_CMD_STATE:
-            # New STATE format (no device_type_code). Uses:
-            # +state <device_type> <length> <src_id> <cmd_type> [<brightness>]
+            device_type_enum = 0
+            
             if brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 length = 4
                 cmd_type = 3
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {cmd_type} {brightness}{SERIAL_LINE_ENDING}"
+                    f"{device_id} {device_type_enum} {cmd_type} {brightness}{SERIAL_LINE_ENDING}"
                 )
             else:
                 length = 3
                 cmd_type = 1 if state else 0
-                # Send arbitrary brightness (255) even for pure state commands
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {cmd_type} 255{SERIAL_LINE_ENDING}"
+                    f"{device_id} {device_type_enum} {cmd_type}{SERIAL_LINE_ENDING}"
                 )
         
         return ""
@@ -366,6 +361,15 @@ class ZigbeeCoordinator:
         device_type = parsed.get("device_type")
         device_id = parsed.get("device_id")
         
+        # Normalize device_type to lowercase to prevent duplicates
+        if device_type:
+            device_type = device_type.lower()
+            parsed["device_type"] = device_type
+            # Convert "sw" to "switch" if needed
+            if device_type == "sw":
+                device_type = ZIGBEE_DEVICE_SWITCH
+                parsed["device_type"] = device_type
+        
         _LOGGER.debug("Command type: %s, Device type: %s, Device ID: %s", command, device_type, device_id)
         
         if command == ZIGBEE_CMD_ADD:
@@ -391,8 +395,22 @@ class ZigbeeCoordinator:
         
         device_manager_id = f"zigbee_{device_type}_{device_id}"
         
+        # Check if device already exists in either _devices or device_manager
+        if device_id in self._devices:
+            _LOGGER.debug("Device already exists in _devices, updating: %s (ID: %d)", device_manager_id, device_id)
+            device_data = self._devices[device_id]
+            device_data.update({
+                "zigbee_id": device_id,
+                "device_type": DEVICE_TYPE_ZIGBEE,
+                "status": DEVICE_STATUS_CONNECTED,
+            })
+            # Update device_manager if it exists there too
+            if device_manager_id in self.device_manager.devices:
+                self.device_manager.devices[device_manager_id].update(device_data)
+            return
+        
         if device_manager_id in self.device_manager.devices:
-            _LOGGER.debug("Device already exists, updating: %s (ID: %d)", device_manager_id, device_id)
+            _LOGGER.debug("Device already exists in device_manager, updating: %s (ID: %d)", device_manager_id, device_id)
             device_data = self.device_manager.devices[device_manager_id]
             device_data.update({
                 "zigbee_id": device_id,
@@ -432,14 +450,17 @@ class ZigbeeCoordinator:
         device_id = parsed.get("device_id")
         device_type = parsed.get("device_type")
         brightness = parsed.get("brightness")
+        cmd_type = parsed.get("cmd_type")
+        supports_brightness = parsed.get("supports_brightness", False)
+        length = parsed.get("length")
         
         if device_id is None:
             _LOGGER.warning("State update missing device_id")
             return
         
+        device_manager_id = f"zigbee_{device_type}_{device_id}"
         device_data = self._devices.get(device_id)
         if not device_data:
-            device_manager_id = f"zigbee_{device_type}_{device_id}"
             if device_manager_id in self.device_manager.devices:
                 device_data = self.device_manager.devices[device_manager_id]
                 self._devices[device_id] = device_data
@@ -465,22 +486,42 @@ class ZigbeeCoordinator:
                     "properties": {
                         "switch_state": False,
                         "light_state": False,
+                        "supports_brightness": supports_brightness,
                     },
                 }
                 self._devices[device_id] = device_data
                 await self.device_manager.add_device(device_data)
+        else:
+            # Update supports_brightness property if not already set
+            if "supports_brightness" not in device_data.get("properties", {}):
+                device_data.setdefault("properties", {})["supports_brightness"] = supports_brightness
         
         if device_type == ZIGBEE_DEVICE_BULB:
-            if brightness is not None:
+            if supports_brightness and brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 device_data["properties"]["brightness"] = brightness
-                device_data["properties"]["light_state"] = True
+                if cmd_type is not None:
+                    device_data["properties"]["light_state"] = (cmd_type == 1 or cmd_type == 3)
+                else:
+                    device_data["properties"]["light_state"] = True
             else:
-                device_data["properties"]["light_state"] = True
+                if cmd_type is not None:
+                    device_data["properties"]["light_state"] = (cmd_type == 1)
+                else:
+                    device_data["properties"]["light_state"] = True
         
         elif device_type == ZIGBEE_DEVICE_SWITCH:
-            device_data["properties"]["switch_state"] = True
-            _LOGGER.info("Zigbee switch %d pressed", device_id)
+            if cmd_type is not None:
+                device_data["properties"]["switch_state"] = (cmd_type == 1 or cmd_type == 3)
+                _LOGGER.info("Zigbee switch %d state: %s (cmd_type=%d)", device_id, "on" if (cmd_type == 1 or cmd_type == 3) else "off", cmd_type)
+            else:
+                device_data["properties"]["switch_state"] = True
+                _LOGGER.info("Zigbee switch %d pressed (no cmd_type)", device_id)
+            
+            if supports_brightness and brightness is not None:
+                brightness = max(0, min(255, int(brightness)))
+                device_data["properties"]["brightness"] = brightness
+                _LOGGER.info("Zigbee switch %d brightness: %d", device_id, brightness)
         
         device_manager_id = device_data["device_id"]
         if device_manager_id in self.device_manager.devices:

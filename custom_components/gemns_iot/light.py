@@ -154,10 +154,9 @@ class GemnsLight(LightEntity):
             supports_brightness = properties.get("supports_brightness", True)  # Default to True for backward compatibility
             
             if supports_brightness:
-                # Brightness-capable bulb (length == 4)
-            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
-            self._attr_color_mode = ColorMode.BRIGHTNESS
-            self._attr_brightness = 255
+                self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+                self._attr_color_mode = ColorMode.BRIGHTNESS
+                self._attr_brightness = 255
             else:
                 # Simple on/off bulb (length == 3, no brightness)
                 self._attr_supported_color_modes = {ColorMode.ONOFF}

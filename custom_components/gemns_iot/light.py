@@ -236,11 +236,11 @@ class GemnsLight(LightEntity):
                     # For Zigbee bulbs, only send brightness if supported
                     brightness = None
                     if supports_brightness:
-                    if ATTR_BRIGHTNESS in kwargs:
-                        brightness = kwargs[ATTR_BRIGHTNESS]
-                        self._attr_brightness = brightness
-                    else:
-                        brightness = self._attr_brightness
+                        if ATTR_BRIGHTNESS in kwargs:
+                            brightness = kwargs[ATTR_BRIGHTNESS]
+                            self._attr_brightness = brightness
+                        else:
+                            brightness = self._attr_brightness
                     
                     if brightness is not None:
                         brightness = max(0, min(255, int(brightness)))

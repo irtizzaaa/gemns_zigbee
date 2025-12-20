@@ -104,10 +104,10 @@ async def async_setup_entry(
 
             if not existing_entry and not existing_entity:
                 if _add_entities_callback:
-                new_entity = GemnsLight(device_manager, device_data, hass)
-                _entities.append(new_entity)
-                _add_entities_callback([new_entity])
-                _LOGGER.info("Created new light entity for device: %s", device_id)
+                    new_entity = GemnsLight(device_manager, device_data, hass)
+                    _entities.append(new_entity)
+                    _add_entities_callback([new_entity])
+                    _LOGGER.info("Created new light entity for device: %s", device_id)
                 else:
                     _LOGGER.error("Cannot create light entity: _add_entities_callback is None")
             else:

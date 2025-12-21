@@ -336,18 +336,9 @@ class GemnsLight(LightEntity):
                         _LOGGER.error("Zigbee device missing zigbee_id: %s", self.device_id)
                         return
                     
-                    # Check if device supports brightness and include it
-                    properties = self.device.get("properties", {})
-                    supports_brightness = properties.get("supports_brightness", True)
-                    
-                    brightness = None
-                    if supports_brightness:
-                        brightness = self._attr_brightness if self._attr_brightness is not None else 0
-                        brightness = max(0, min(255, int(brightness)))
-                    
-                    # Send Zigbee serial command
+                    # Send Zigbee serial command (no brightness for OFF)
                     await zigbee_coordinator.send_control_command(
-                        zigbee_id, ZIGBEE_DEVICE_BULB, False, brightness
+                        zigbee_id, ZIGBEE_DEVICE_BULB, False, None
                     )
                 else:
                     _LOGGER.error("Zigbee coordinator not available")

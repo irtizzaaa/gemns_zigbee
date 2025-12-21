@@ -233,12 +233,9 @@ class GemnsLight(LightEntity):
                     properties = self.device.get("properties", {})
                     supports_brightness = properties.get("supports_brightness", True)
                     
-                    if supports_brightness:
-                        if ATTR_BRIGHTNESS in kwargs:
-                            brightness = kwargs[ATTR_BRIGHTNESS]
-                            self._attr_brightness = brightness
-                        else:
-                            brightness = self._attr_brightness if self._attr_brightness is not None else 255
+                    if supports_brightness and ATTR_BRIGHTNESS in kwargs:
+                        brightness = kwargs[ATTR_BRIGHTNESS]
+                        self._attr_brightness = brightness
                         brightness = max(0, min(255, int(brightness)))
                     else:
                         brightness = None

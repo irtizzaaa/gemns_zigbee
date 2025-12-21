@@ -175,23 +175,23 @@ class ZigbeeCommandParser:
             return f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} {type_code}{SERIAL_LINE_ENDING}"
         
         elif command == ZIGBEE_CMD_STATE:
-            if state:
-                state_value = 3
-            else:
-                state_value = 0
-            
             if brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 length = 4
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {state_value} {brightness}{SERIAL_LINE_ENDING}"
+                    f"{device_id} 0 {brightness}{SERIAL_LINE_ENDING}"
                 )
             else:
+                if state:
+                    state_value = 1
+                else:
+                    state_value = 0
+                brightness = 133
                 length = 3
                 return (
                     f"{ZIGBEE_CMD_PREFIX}+{command} {device_type} {length} "
-                    f"{device_id} {state_value}{SERIAL_LINE_ENDING}"
+                    f"{device_id} {state_value} {brightness}{SERIAL_LINE_ENDING}"
                 )
         
         return ""

@@ -196,21 +196,27 @@ class GemnsSwitch(SwitchEntity):
     def _update_state(self):
         """Update switch state from device data."""
         status = self.device.get("status", DEVICE_STATUS_OFFLINE)
-
-        if status == DEVICE_STATUS_CONNECTED:
-            properties = self.device.get("properties", {})
+        properties = self.device.get("properties", {})
+        cmd_type = properties.get("cmd_type")
+        
+        is_zigbee_switch = (
+            self.device.get("device_type") == DEVICE_TYPE_ZIGBEE and 
+            self.device.get("category") == DEVICE_CATEGORY_SWITCH
+        )
+        
+        if is_zigbee_switch and cmd_type == 3:
+            self._attr_is_on = (status == DEVICE_STATUS_CONNECTED)
+        elif status == DEVICE_STATUS_CONNECTED:
             switch_state = properties.get("switch_state", False)
             self._attr_is_on = bool(switch_state)
-            
-            brightness = properties.get("brightness")
-            if brightness is not None:
-                self._attr_brightness = brightness
-            elif not hasattr(self, '_attr_brightness'):
-                self._attr_brightness = None
         else:
             self._attr_is_on = False
-            if not hasattr(self, '_attr_brightness'):
-                self._attr_brightness = None
+        
+        brightness = properties.get("brightness")
+        if brightness is not None:
+            self._attr_brightness = brightness
+        elif not hasattr(self, '_attr_brightness'):
+            self._attr_brightness = None
 
         if status == DEVICE_STATUS_CONNECTED or self.device_id in self.device_manager.devices:
             self._attr_available = True
@@ -225,9 +231,14 @@ class GemnsSwitch(SwitchEntity):
         
         properties = self.device.get("properties", {})
         cmd_type = properties.get("cmd_type")
+        is_zigbee_switch = (
+            self.device.get("device_type") == DEVICE_TYPE_ZIGBEE and 
+            self.device.get("category") == DEVICE_CATEGORY_SWITCH
+        )
         
-        if cmd_type == 3:
-            return "ON"
+        if is_zigbee_switch and cmd_type == 3:
+            status = self.device.get("status", DEVICE_STATUS_OFFLINE)
+            return "on" if status == DEVICE_STATUS_CONNECTED else "off"
         elif self._attr_is_on:
             return "on"
         else:

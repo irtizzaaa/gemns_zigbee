@@ -536,26 +536,60 @@ class ZigbeeCoordinator:
                 device_data.setdefault("properties", {})["supports_brightness"] = supports_brightness
         
         if device_type == ZIGBEE_DEVICE_BULB:
+            current_light_state = device_data.get("properties", {}).get("light_state", False)
+            
             if supports_brightness and brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 device_data["properties"]["brightness"] = brightness
                 if cmd_type is not None:
-                    device_data["properties"]["light_state"] = (cmd_type == 1 or cmd_type == 3)
+                    if cmd_type == 3:
+                        device_data["properties"]["light_state"] = not current_light_state
+                        _LOGGER.info("Zigbee bulb %d toggle: %s -> %s (cmd_type=3)", device_id, 
+                                   "on" if current_light_state else "off",
+                                   "on" if not current_light_state else "off")
+                    else:
+                        device_data["properties"]["light_state"] = (cmd_type == 1)
                 else:
                     device_data["properties"]["light_state"] = True
             else:
                 if cmd_type is not None:
-                    device_data["properties"]["light_state"] = (cmd_type == 1)
+                    if cmd_type == 3:
+                        device_data["properties"]["light_state"] = not current_light_state
+                        _LOGGER.info("Zigbee bulb %d toggle: %s -> %s (cmd_type=3)", device_id,
+                                   "on" if current_light_state else "off",
+                                   "on" if not current_light_state else "off")
+                    else:
+                        device_data["properties"]["light_state"] = (cmd_type == 1)
                 else:
                     device_data["properties"]["light_state"] = True
         
         elif device_type == ZIGBEE_DEVICE_SWITCH:
             if cmd_type is not None:
-                device_data["properties"]["switch_state"] = (cmd_type == 1 or cmd_type == 3)
                 device_data["properties"]["cmd_type"] = cmd_type
-                _LOGGER.info("Zigbee switch %d state: %s (cmd_type=%d)", device_id, "ON" if cmd_type == 3 else ("on" if (cmd_type == 1 or cmd_type == 3) else "off"), cmd_type)
+                
+                if cmd_type == 3:
+                    current_switch_state = device_data.get("properties", {}).get("switch_state", False)
+                    new_switch_state = not current_switch_state
+                    device_data["properties"]["switch_state"] = new_switch_state
+                    device_data["status"] = DEVICE_STATUS_CONNECTED if new_switch_state else DEVICE_STATUS_OFFLINE
+                    _LOGGER.info("Zigbee switch %d toggle: %s -> %s (cmd_type=3, status=%s)", 
+                               device_id, 
+                               "on" if current_switch_state else "off",
+                               "on" if new_switch_state else "off",
+                               device_data["status"])
+                elif cmd_type == 1:
+                    # ON command
+                    device_data["properties"]["switch_state"] = True
+                    device_data["status"] = DEVICE_STATUS_CONNECTED
+                    _LOGGER.info("Zigbee switch %d ON (cmd_type=1)", device_id)
+                else:
+                    # OFF command (cmd_type == 0)
+                    device_data["properties"]["switch_state"] = False
+                    device_data["status"] = DEVICE_STATUS_CONNECTED
+                    _LOGGER.info("Zigbee switch %d OFF (cmd_type=%d)", device_id, cmd_type)
             else:
                 device_data["properties"]["switch_state"] = True
+                device_data["status"] = DEVICE_STATUS_CONNECTED
                 _LOGGER.info("Zigbee switch %d pressed (no cmd_type)", device_id)
             
             if supports_brightness and brightness is not None:

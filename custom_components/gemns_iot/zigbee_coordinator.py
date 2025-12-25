@@ -568,14 +568,14 @@ class ZigbeeCoordinator:
                 device_data["properties"]["cmd_type"] = cmd_type
                 
                 if cmd_type == 3:
-                    current_switch_state = device_data.get("properties", {}).get("switch_state", False)
-                    new_switch_state = not current_switch_state
-                    device_data["properties"]["switch_state"] = new_switch_state
-                    device_data["status"] = DEVICE_STATUS_CONNECTED if new_switch_state else DEVICE_STATUS_OFFLINE
+                    current_status = device_data.get("status", DEVICE_STATUS_OFFLINE)
+                    current_is_on = (current_status == DEVICE_STATUS_CONNECTED)
+                    new_is_on = not current_is_on
+                    device_data["status"] = DEVICE_STATUS_CONNECTED if new_is_on else DEVICE_STATUS_OFFLINE
                     _LOGGER.info("Zigbee switch %d toggle: %s -> %s (cmd_type=3, status=%s)", 
                                device_id, 
-                               "on" if current_switch_state else "off",
-                               "on" if new_switch_state else "off",
+                               "on" if current_is_on else "off",
+                               "on" if new_is_on else "off",
                                device_data["status"])
                 elif cmd_type == 1:
                     # ON command

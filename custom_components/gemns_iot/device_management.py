@@ -15,6 +15,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 from .const import (
     CONF_MQTT_BROKER,
+    DEVICE_CATEGORY_SWITCH,
+    DEVICE_STATUS_OFFLINE,
+    DEVICE_TYPE_ZIGBEE,
     DOMAIN,
     MQTT_TOPIC_CONTROL,
     MQTT_TOPIC_DEVICE,
@@ -239,14 +242,49 @@ class GemnsDeviceManager:
 
     async def _update_device_statuses(self):
         """Update status of all devices."""
+        current_time = datetime.now(UTC)
+        timeout_seconds = 30
+        
         for device in self.devices.values():
             if device.get("status") == "connected":
-                if random.random() < 0.1:
-                    device["status"] = "offline"
-                    device["last_seen"] = datetime.now(UTC).isoformat()
-                    self.hass.async_create_task(
-                        self._async_notify_device_update(device)
-                    )
+                device_type = device.get("device_type")
+                category = device.get("category")
+                properties = device.get("properties", {})
+                cmd_type = properties.get("cmd_type")
+                
+                is_zigbee_switch_cmd3 = (
+                    device_type == DEVICE_TYPE_ZIGBEE and
+                    category == DEVICE_CATEGORY_SWITCH and
+                    cmd_type == 3
+                )
+                
+                if is_zigbee_switch_cmd3:
+                    last_seen_str = device.get("last_seen")
+                    if last_seen_str:
+                        try:
+                            last_seen_str_clean = last_seen_str.replace('Z', '+00:00')
+                            last_seen = datetime.fromisoformat(last_seen_str_clean)
+                            if last_seen.tzinfo is None:
+                                last_seen = last_seen.replace(tzinfo=UTC)
+                            time_diff = (current_time - last_seen).total_seconds()
+                            
+                            if time_diff > timeout_seconds:
+                                device["status"] = DEVICE_STATUS_OFFLINE
+                                self.hass.async_create_task(
+                                    self._async_notify_device_update(device)
+                                )
+                                _LOGGER.debug("Switch %s (cmd_type=3) set to offline - no message for %.1f seconds", 
+                                            device.get("device_id"), time_diff)
+                        except (ValueError, TypeError, AttributeError) as e:
+                            _LOGGER.warning("Error parsing last_seen for device %s: %s", 
+                                          device.get("device_id"), e)
+                else:
+                    if random.random() < 0.1:
+                        device["status"] = "offline"
+                        device["last_seen"] = datetime.now(UTC).isoformat()
+                        self.hass.async_create_task(
+                            self._async_notify_device_update(device)
+                        )
 
     async def _load_devices(self):
         """Load devices from a simple JSON file."""

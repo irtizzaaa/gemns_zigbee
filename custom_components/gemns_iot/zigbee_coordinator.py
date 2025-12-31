@@ -538,6 +538,9 @@ class ZigbeeCoordinator:
         if device_type == ZIGBEE_DEVICE_BULB:
             current_light_state = device_data.get("properties", {}).get("light_state", False)
             
+            # Set device status to connected when receiving state updates
+            device_data["status"] = DEVICE_STATUS_CONNECTED
+            
             if supports_brightness and brightness is not None:
                 brightness = max(0, min(255, int(brightness)))
                 device_data["properties"]["brightness"] = brightness
@@ -549,6 +552,8 @@ class ZigbeeCoordinator:
                                    "on" if not current_light_state else "off")
                     else:
                         device_data["properties"]["light_state"] = (cmd_type == 1)
+                        _LOGGER.info("Zigbee bulb %d state: %s (cmd_type=%d)", device_id,
+                                   "on" if (cmd_type == 1) else "off", cmd_type)
                 else:
                     device_data["properties"]["light_state"] = True
             else:
@@ -560,6 +565,8 @@ class ZigbeeCoordinator:
                                    "on" if not current_light_state else "off")
                     else:
                         device_data["properties"]["light_state"] = (cmd_type == 1)
+                        _LOGGER.info("Zigbee bulb %d state: %s (cmd_type=%d)", device_id,
+                                   "on" if (cmd_type == 1) else "off", cmd_type)
                 else:
                     device_data["properties"]["light_state"] = True
         

@@ -409,24 +409,28 @@ class GemnsLight(LightEntity):
         """Handle device updates."""
         # Check if this update is for our device
         if isinstance(data, dict) and data.get("device_id") == self.device_id:
-            # Preserve current light state if it exists
-            current_state = self._attr_is_on
-            current_brightness = self._attr_brightness
-            current_color = self._attr_rgb_color
-            self.device = data
+            # Get the latest device data from device_manager to ensure we have all updates
+            updated_device = self.device_manager.get_device(self.device_id)
+            if updated_device:
+                self.device = updated_device
+            else:
+                self.device = data
             
             self._set_light_properties()
             self._update_state()
 
+            # For Zigbee devices, always update UI (commands come from serial port)
+            # For other devices, skip if we just controlled it (to avoid MQTT race conditions)
+            is_zigbee = self.device.get("device_type") == DEVICE_TYPE_ZIGBEE
+            should_update = is_zigbee or not (hasattr(self, '_just_controlled') and self._just_controlled)
+            
+            if should_update:
+                self.hass.loop.call_soon_threadsafe(
+                    lambda: self.hass.async_create_task(self._async_write_state())
+                )
+            
             if hasattr(self, '_just_controlled') and self._just_controlled:
-                self._attr_is_on = current_state
-                self._attr_brightness = current_brightness
-                self._attr_rgb_color = current_color
                 self._just_controlled = False
-
-            self.hass.loop.call_soon_threadsafe(
-                lambda: self.hass.async_create_task(self._async_write_state())
-            )
 
     async def _async_write_state(self):
         """Write state to Home Assistant."""

@@ -105,6 +105,8 @@ class GemnsBLEBinarySensor(BinarySensorEntity):
         """Return the state of the binary sensor."""
         if self._device_type == "door_sensor":
             return "door opened" if self._attr_is_on else "door closed"
+        if "leak" in self._device_type.lower():
+            return "leak detected" if self._attr_is_on else "no leak detected"
         return super().state
 
     @property

@@ -184,7 +184,10 @@ class GemnsBLESensor(SensorEntity):
         """Update sensor state from coordinator data."""
         if not self.coordinator.data:
             self._attr_available = True
-            self._attr_native_value = None
+            if "leak" in self._device_type.lower():
+                self._attr_native_value = "No Leak Detected"
+            else:
+                self._attr_native_value = None
             _LOGGER.debug("BLE sensor %s: No coordinator data - device available but no data (restart scenario)", self.address)
             return
 
@@ -287,8 +290,18 @@ class GemnsBLESensor(SensorEntity):
         _LOGGER.info("SENSOR DATA: %s | Sensor data: %s", self.address, sensor_data)
 
         if "leak_detected" in sensor_data:
-            _LOGGER.info("LEAK SENSOR SKIPPED: %s | Leak detected: %s (handled by binary sensor)",
-                        self.address, sensor_data["leak_detected"])
+            # Set state value for leak sensor - show "No Leak Detected" when False, timestamp when True
+            if sensor_data["leak_detected"]:
+                # If leak is detected, show the timestamp
+                timestamp = data.get("timestamp")
+                if timestamp:
+                    self._attr_native_value = timestamp
+                else:
+                    self._attr_native_value = "Leak Detected"
+            else:
+                self._attr_native_value = "No Leak Detected"
+            _LOGGER.info("LEAK SENSOR: %s | Leak detected: %s | Value: %s",
+                        self.address, sensor_data["leak_detected"], self._attr_native_value)
 
         elif "temperature" in sensor_data:
             self._attr_native_value = sensor_data["temperature"]
@@ -316,15 +329,20 @@ class GemnsBLESensor(SensorEntity):
                         self.address, self._attr_native_value)
 
         else:
-            rssi = data.get("rssi")
-            if rssi is not None:
-                signal_percentage = max(0, min(100, (rssi + 100) * 100 / 70))
-                self._attr_native_value = round(signal_percentage, 1)
-                _LOGGER.info("RSSI SIGNAL: %s | RSSI: %s dBm | Signal: %s%%",
-                            self.address, rssi, self._attr_native_value)
+            # Check if this is a leak sensor without leak_detected data
+            if "leak" in self._device_type.lower():
+                self._attr_native_value = "No Leak Detected"
+                _LOGGER.info("LEAK SENSOR (NO DATA): %s | No leak data, showing 'No Leak Detected'", self.address)
             else:
-                self._attr_native_value = None
-                _LOGGER.warning("NO SENSOR VALUE: %s | No RSSI or sensor data found", self.address)
+                rssi = data.get("rssi")
+                if rssi is not None:
+                    signal_percentage = max(0, min(100, (rssi + 100) * 100 / 70))
+                    self._attr_native_value = round(signal_percentage, 1)
+                    _LOGGER.info("RSSI SIGNAL: %s | RSSI: %s dBm | Signal: %s%%",
+                                self.address, rssi, self._attr_native_value)
+                else:
+                    self._attr_native_value = None
+                    _LOGGER.warning("NO SENSOR VALUE: %s | No RSSI or sensor data found", self.address)
 
     async def async_update(self) -> None:
         """Update sensor state."""

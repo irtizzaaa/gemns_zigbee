@@ -48,6 +48,10 @@
       },
       "gemns_zigbee_connected": {
         "name": "Zigbee Connected"
+      },
+      "state": {
+        "no leak detected": "No Leak Detected",
+        "leak detected": "Leak Detected"
       }
     },
     "switch": {
@@ -59,6 +63,10 @@
   "state": {
     "switch": {
       "activated": "Activated"
+    },
+    "binary_sensor": {
+      "no leak detected": "No Leak Detected",
+      "leak detected": "Leak Detected"
     }
   }
 }

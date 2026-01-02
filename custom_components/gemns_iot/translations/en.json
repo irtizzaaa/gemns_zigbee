@@ -49,6 +49,16 @@
       "gemns_zigbee_connected": {
         "name": "Zigbee Connected"
       }
+    },
+    "switch": {
+      "state": {
+        "activated": "Activated"
+      }
+    }
+  },
+  "state": {
+    "switch": {
+      "activated": "Activated"
     }
   }
 }

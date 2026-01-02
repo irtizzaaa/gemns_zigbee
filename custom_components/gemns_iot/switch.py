@@ -238,7 +238,9 @@ class GemnsSwitch(SwitchEntity):
         
         if is_zigbee_switch and cmd_type == 3:
             status = self.device.get("status", DEVICE_STATUS_OFFLINE)
-            return "on" if status == DEVICE_STATUS_CONNECTED else "off"
+            return "activated" if status == DEVICE_STATUS_CONNECTED else "off"
+        elif is_zigbee_switch and self._attr_is_on:
+            return "activated"
         elif self._attr_is_on:
             return "on"
         else:

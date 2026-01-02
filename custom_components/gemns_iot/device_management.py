@@ -243,7 +243,7 @@ class GemnsDeviceManager:
     async def _update_device_statuses(self):
         """Update status of all devices."""
         current_time = datetime.now(UTC)
-        timeout_seconds = 30
+        timeout_seconds = 5
         
         for device in self.devices.values():
             if device.get("status") == "connected":

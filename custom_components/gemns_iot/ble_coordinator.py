@@ -211,11 +211,11 @@ class GemnsBluetoothProcessorCoordinator(
         return data
 
     def _parse_gems_manufacturer_data(self, data: bytes) -> dict[str, Any]:
-        """Parse Gemns™ IoT manufacturer data using 18-byte packet format."""
+        """Parse Gemns™ IoT manufacturer data using 17-byte packet format."""
         _LOGGER.info("PARSING GEMNS DATA: Length=%d | Data=%s", len(data), data.hex())
 
-        if len(data) < 18:
-            _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 18)", len(data))
+        if len(data) < 17:
+            _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 17)", len(data))
             return {}
 
         _LOGGER.info("PACKET DEBUG: Length=%d, Data=%s", len(data), data.hex())
@@ -337,7 +337,7 @@ class GemnsBluetoothProcessorCoordinator(
         if discovery_info.manufacturer_data:
             for manufacturer_id, data in discovery_info.manufacturer_data.items():
                 _LOGGER.info("Checking manufacturer data: Company ID %d, Data length: %d", manufacturer_id, len(data))
-                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 18:
+                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 17:
                     _LOGGER.info("Found Gemns™ IoT device by manufacturer data")
                     return True
 

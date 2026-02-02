@@ -345,46 +345,25 @@ def parse_gems_packet(manufacturer_data: bytes, decryption_key: bytes | None = N
 
 
 def parse_gemns_v2(manufacturer_data: bytes, decryption_key: bytes | None = None) -> dict[str, Any] | None:
-    """Parse GemnsV2 manufacturer data format.
+    """Parse WePowerV2 manufacturer data.
 
-    Format:
-      - bytes 0-1: manufacturer/company id (little-endian)
-      - bytes 2-17: 16-byte payload (encrypted or plaintext depending on key)
+    Expected format:
+      - bytes 0-1: manufacturer id (little-endian)
+      - bytes 2-16: 15-byte payload (plaintext)
 
-    Decrypted payload mapping (16 bytes, 0-based indexes):
-      - bytes 0-3: serial number (uint32, little-endian) -- not displayed
-      - byte 4: device type (uint8)
-      - bytes 5-8: event counter (uint32, little-endian)
-      - byte 9: on/off state (0 = off, 1 = on)
+    Payload mapping (0-based):
+      - bytes 0-3: serial (uint32, LE)
+      - byte 4: device type
+      - bytes 5-8: event counter (uint32, LE)
+      - byte 9: on/off (0=off,1=on)
     """
     try:
-        if len(manufacturer_data) != 18:
-            _LOGGER.debug("parse_gemns_v2: unexpected length %d (need 18)", len(manufacturer_data))
+        if len(manufacturer_data) != 17:
+            _LOGGER.debug("parse_gemns_v2: unexpected length %d (need 17)", len(manufacturer_data))
             return None
 
         manuf_id = struct.unpack('<H', manufacturer_data[0:2])[0]
-        encrypted_payload = manufacturer_data[2:18]
-
-        _LOGGER.info("parse_gemns_v2: manuf_id=0x%04X payload=%s", manuf_id, encrypted_payload.hex())
-
-        # Decrypt if key provided, otherwise treat payload as plaintext (for testing)
-        if decryption_key:
-            try:
-                cipher = Cipher(
-                    algorithms.AES(decryption_key),
-                    modes.ECB(),
-                    backend=default_backend()
-                )
-                decryptor = cipher.decryptor()
-                payload = decryptor.update(encrypted_payload) + decryptor.finalize()
-            except Exception as e:
-                _LOGGER.error("parse_gemns_v2: decryption failed: %s", e)
-                return None
-        else:
-            payload = encrypted_payload
-
-        if len(payload) < 10:
-            _LOGGER.warning("parse_gemns_v2: payload too short (%d)", len(payload))
+        payload = manufacturer_data[2:17]  # 15 bytes
 
         serial = struct.unpack('<I', payload[0:4])[0]
         device_type = payload[4]

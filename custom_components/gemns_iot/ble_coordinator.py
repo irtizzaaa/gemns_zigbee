@@ -24,7 +24,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import BLE_COMPANY_ID, CONF_ADDRESS, CONF_DECRYPTION_KEY
-from .packet_parser import parse_gems_packet, parse_gemns_v2
+from .packet_parser import parse_gems_packet, parse_wepower_v2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -212,7 +212,7 @@ class GemnsBluetoothProcessorCoordinator(
 
     def _parse_gems_manufacturer_data(self, data: bytes) -> dict[str, Any]:
         """Parse Gemns™ IoT manufacturer data using 17-byte packet format."""
-        _LOGGER.info("PARSING GEMNS DATA: Length=%d | Data=%s", len(data), data.hex())
+        _LOGGER.info("PARSING WePowerV2 DATA: Length=%d | Data=%s", len(data), data.hex())
 
         if len(data) < 17:
             _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 17)", len(data))
@@ -230,10 +230,10 @@ class GemnsBluetoothProcessorCoordinator(
         else:
             _LOGGER.warning("NO DECRYPTION KEY FOUND in config entry")
 
-        # First, try the new GemnsV2 format (2-byte manufacturer id + 16-byte payload)
-        parsed_v2 = parse_gemns_v2(data, decryption_key)
+        # First, try the WePowerV2 format (2-byte manufacturer id + 15-byte payload)
+        parsed_v2 = parse_wepower_v2(data, decryption_key)
         if parsed_v2:
-            _LOGGER.info("GEMNS V2 PARSED: %s", parsed_v2)
+            _LOGGER.info("WePowerV2 PARSED: %s", parsed_v2)
             result = {
                 "manufacturer_id": parsed_v2.get("manufacturer_id"),
                 "decrypted_payload": parsed_v2.get("raw_payload"),

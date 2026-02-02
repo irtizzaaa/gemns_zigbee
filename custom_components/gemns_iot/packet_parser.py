@@ -344,7 +344,7 @@ def parse_gems_packet(manufacturer_data: bytes, decryption_key: bytes | None = N
         return result
 
 
-def parse_gemns_v2(manufacturer_data: bytes, decryption_key: bytes | None = None) -> dict[str, Any] | None:
+def parse_wepower_v2(manufacturer_data: bytes, decryption_key: bytes | None = None) -> dict[str, Any] | None:
     """Parse WePowerV2 manufacturer data.
 
     Expected format:
@@ -359,7 +359,7 @@ def parse_gemns_v2(manufacturer_data: bytes, decryption_key: bytes | None = None
     """
     try:
         if len(manufacturer_data) != 17:
-            _LOGGER.debug("parse_gemns_v2: unexpected length %d (need 17)", len(manufacturer_data))
+            _LOGGER.debug("parse_wepower_v2: unexpected length %d (need 17)", len(manufacturer_data))
             return None
 
         manuf_id = struct.unpack('<H', manufacturer_data[0:2])[0]
@@ -379,8 +379,11 @@ def parse_gemns_v2(manufacturer_data: bytes, decryption_key: bytes | None = None
             "on_off": int(on_off),
         }
 
-        _LOGGER.info("parse_gemns_v2: parsed result: %s", result)
+        _LOGGER.info("parse_wepower_v2: parsed result: %s", result)
         return result
     except (ValueError, IndexError, struct.error, TypeError) as e:
-        _LOGGER.error("parse_gemns_v2: failed to parse: %s", e)
+        _LOGGER.error("parse_wepower_v2: failed to parse: %s", e)
         return None
+
+# Backwards-compatible alias
+parse_gemns_v2 = parse_wepower_v2

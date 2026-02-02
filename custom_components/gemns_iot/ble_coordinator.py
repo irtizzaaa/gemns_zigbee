@@ -24,7 +24,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import BLE_COMPANY_ID, CONF_ADDRESS, CONF_DECRYPTION_KEY
-from .packet_parser import parse_gems_packet
+from .packet_parser import parse_gems_packet, parse_gemns_v2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -214,29 +214,11 @@ class GemnsBluetoothProcessorCoordinator(
         """Parse Gemns™ IoT manufacturer data using 18-byte packet format."""
         _LOGGER.info("PARSING GEMNS DATA: Length=%d | Data=%s", len(data), data.hex())
 
-        if len(data) < 18:  # Gemns™ IoT packet format is 18 bytes
+        if len(data) < 18:
             _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 18)", len(data))
             return {}
 
-        if len(data) < 18:
-            _LOGGER.error("PACKET TOO SHORT: %d bytes (need 18)", len(data))
-            return {}
-
         _LOGGER.info("PACKET DEBUG: Length=%d, Data=%s", len(data), data.hex())
-
-        try:
-            company_id = 0x0F9C
-            flags = data[0]  # 1 byte
-            encrypted_data = data[1:17]  # 16 bytes (positions 1-16)
-            crc = data[17]  # 1 byte (position 17, last byte)
-
-            _LOGGER.info("PACKET STRUCTURE: Company ID=0x%04X (filtered by HA), Flags=0x%02X, CRC=0x%02X",
-                        company_id, flags, crc)
-            _LOGGER.info("ENCRYPTED DATA (%d bytes): %s", len(encrypted_data), encrypted_data.hex())
-
-        except (IndexError, struct.error) as e:
-            _LOGGER.error("PACKET PARSING ERROR: %s", e)
-            return {}
 
         decryption_key = None
         if hasattr(self._entry, 'data') and CONF_DECRYPTION_KEY in self._entry.data:
@@ -248,52 +230,45 @@ class GemnsBluetoothProcessorCoordinator(
         else:
             _LOGGER.warning("NO DECRYPTION KEY FOUND in config entry")
 
-        _LOGGER.info("CALLING PACKET PARSER: packet_data=%s, key=%s",
+        # First, try the new GemnsV2 format (2-byte manufacturer id + 16-byte payload)
+        parsed_v2 = parse_gemns_v2(data, decryption_key)
+        if parsed_v2:
+            _LOGGER.info("GEMNS V2 PARSED: %s", parsed_v2)
+            result = {
+                "manufacturer_id": parsed_v2.get("manufacturer_id"),
+                "decrypted_payload": parsed_v2.get("raw_payload"),
+                "serial": parsed_v2.get("serial"),
+                "device_type": parsed_v2.get("device_type"),
+                "event_counter": parsed_v2.get("event_counter"),
+                "on_off": parsed_v2.get("on_off"),
+            }
+            return result
+
+        # Fallback to legacy parser which expects flags at byte 0
+        _LOGGER.info("CALLING LEGACY PACKET PARSER: packet_data=%s, key=%s",
                     data.hex(), decryption_key.hex() if decryption_key else "None")
 
         parsed_packet = parse_gems_packet(data, decryption_key)
-
         if not parsed_packet:
-            _LOGGER.error("PACKET PARSER RETURNED EMPTY RESULT")
+            _LOGGER.error("LEGACY PACKET PARSER RETURNED EMPTY RESULT")
             return {}
 
-        _LOGGER.info("PACKET PARSED SUCCESSFULLY: %s", parsed_packet)
+        _LOGGER.info("LEGACY PACKET PARSED SUCCESSFULLY: %s", parsed_packet)
 
         result = {
-            "company_id": company_id,
-            "flags": flags,
-            "crc": crc,
-            "packet_structure": {
-                "company_id": company_id,
-                "flags": flags,
-                "encrypted_data_length": len(encrypted_data),
-                "crc": crc,
-            }
+            "company_id": 0x0F9C,
+            "flags": parsed_packet.get('flags'),
+            "crc": parsed_packet.get('crc'),
+            "packet_structure": parsed_packet,
         }
 
         if 'decrypted_data' in parsed_packet:
             result['decrypted_data'] = parsed_packet['decrypted_data']
             _LOGGER.info("DECRYPTED DATA: %s", parsed_packet['decrypted_data'])
 
-            decrypted_data = parsed_packet['decrypted_data']
-            if 'firmware_version' in decrypted_data:
-                result['firmware_version'] = decrypted_data['firmware_version']
-                _LOGGER.info("FIRMWARE VERSION: %s", decrypted_data['firmware_version'])
-
         if 'sensor_data' in parsed_packet:
             result['sensor_data'] = parsed_packet['sensor_data']
             _LOGGER.info("SENSOR DATA: %s", parsed_packet['sensor_data'])
-
-            sensor_data = parsed_packet['sensor_data']
-            if 'leak_detected' in sensor_data:
-                result['leak_detected'] = sensor_data['leak_detected']
-                _LOGGER.info("LEAK DETECTED: %s", sensor_data['leak_detected'])
-            if 'event_counter' in sensor_data:
-                result['event_counter'] = sensor_data['event_counter']
-                _LOGGER.info("EVENT COUNTER: %s", sensor_data['event_counter'])
-            if 'sensor_event' in sensor_data:
-                result['sensor_event'] = sensor_data['sensor_event']
-                _LOGGER.info("SENSOR EVENT: %s", sensor_data['sensor_event'])
 
         _LOGGER.info("FINAL RESULT: %s", result)
         return result
@@ -362,7 +337,7 @@ class GemnsBluetoothProcessorCoordinator(
         if discovery_info.manufacturer_data:
             for manufacturer_id, data in discovery_info.manufacturer_data.items():
                 _LOGGER.info("Checking manufacturer data: Company ID %d, Data length: %d", manufacturer_id, len(data))
-                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 20:
+                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 18:
                     _LOGGER.info("Found Gemns™ IoT device by manufacturer data")
                     return True
 

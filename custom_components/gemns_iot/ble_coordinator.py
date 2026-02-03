@@ -148,8 +148,8 @@ class GemnsBluetoothProcessorCoordinator(
                 _LOGGER.info("MANUFACTURER: %s | ID: 0x%04X | Data: %s",
                             self.address, manufacturer_id, manufacturer_data.hex())
                 if manufacturer_id == BLE_COMPANY_ID:  # Gemns™ IoT manufacturer ID (0x0F9C)
-                    _LOGGER.info("GEMNS™ IOT DEVICE DETECTED: %s | Parsing data...", self.address)
-                    parsed_data = self._parse_gems_manufacturer_data(manufacturer_data)
+                    _LOGGER.info("WePowerV2 DEVICE DETECTED: %s | Parsing data...", self.address)
+                    parsed_data = self._parse_gems_manufacturer_data(manufacturer_id, manufacturer_data)
                     if parsed_data:
                         data.update(parsed_data)
                         _LOGGER.info("GEMNS™ IOT DATA PARSED: %s | Result: %s", self.address, parsed_data)
@@ -210,12 +210,12 @@ class GemnsBluetoothProcessorCoordinator(
         _LOGGER.info("FINAL DATA CHECK: %s | firmware_version: %s", self.address, data.get("firmware_version"))
         return data
 
-    def _parse_gems_manufacturer_data(self, data: bytes) -> dict[str, Any]:
-        """Parse Gemns™ IoT manufacturer data using 17-byte packet format."""
-        _LOGGER.info("PARSING WePowerV2 DATA: Length=%d | Data=%s", len(data), data.hex())
+    def _parse_gems_manufacturer_data(self, manufacturer_id: int, data: bytes) -> dict[str, Any]:
+        """Parse WePowerV2 manufacturer data where `data` is the manufacturer payload (15 bytes)."""
+        _LOGGER.info("PARSING WePowerV2 DATA: manuf_id=0x%04X Length=%d | Data=%s", manufacturer_id, len(data), data.hex())
 
-        if len(data) < 17:
-            _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 17)", len(data))
+        if len(data) < 15:
+            _LOGGER.warning("INVALID PACKET LENGTH: %d bytes (expected 15)", len(data))
             return {}
 
         _LOGGER.info("PACKET DEBUG: Length=%d, Data=%s", len(data), data.hex())
@@ -230,8 +230,9 @@ class GemnsBluetoothProcessorCoordinator(
         else:
             _LOGGER.warning("NO DECRYPTION KEY FOUND in config entry")
 
-        # First, try the WePowerV2 format (2-byte manufacturer id + 15-byte payload)
-        parsed_v2 = parse_wepower_v2(data, decryption_key)
+        # Build full data (manufacturer id + payload) 
+        full_data = struct.pack('<H', manufacturer_id) + data
+        parsed_v2 = parse_wepower_v2(full_data, decryption_key)
         if parsed_v2:
             _LOGGER.info("WePowerV2 PARSED: %s", parsed_v2)
             result = {
@@ -337,14 +338,14 @@ class GemnsBluetoothProcessorCoordinator(
         if discovery_info.manufacturer_data:
             for manufacturer_id, data in discovery_info.manufacturer_data.items():
                 _LOGGER.info("Checking manufacturer data: Company ID %d, Data length: %d", manufacturer_id, len(data))
-                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 17:
-                    _LOGGER.info("Found Gemns™ IoT device by manufacturer data")
+                if manufacturer_id == BLE_COMPANY_ID and len(data) >= 15:
+                    _LOGGER.info("Found WePowerV2 device by manufacturer data")
                     return True
 
         name = discovery_info.name or ""
         _LOGGER.info("Checking device name: '%s'", name)
-        if any(pattern in name.upper() for pattern in ["GEMNS", "GEMS"]):
-            _LOGGER.info("Found Gemns™ IoT device by name pattern")
+        if any(pattern in name.upper() for pattern in ["GEMNS", "GEMS", "WEPOWER"]):
+            _LOGGER.info("Found device by name pattern")
             return True
 
         return False

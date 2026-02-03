@@ -235,13 +235,19 @@ class GemnsBluetoothProcessorCoordinator(
         parsed_v2 = parse_wepower_v2(full_data, decryption_key)
         if parsed_v2:
             _LOGGER.info("WePowerV2 PARSED: %s", parsed_v2)
+            sensor_data = {
+                "device_type": parsed_v2.get("device_type"),
+                "event_counter": parsed_v2.get("event_counter"),
+            }
+            on_off = parsed_v2.get("on_off")
+            if on_off is not None:
+                sensor_data["switch_on"] = bool(on_off == 1)
+
             result = {
                 "manufacturer_id": parsed_v2.get("manufacturer_id"),
                 "decrypted_payload": parsed_v2.get("raw_payload"),
                 "serial": parsed_v2.get("serial"),
-                "device_type": parsed_v2.get("device_type"),
-                "event_counter": parsed_v2.get("event_counter"),
-                "on_off": parsed_v2.get("on_off"),
+                "sensor_data": sensor_data,
             }
             return result
 
